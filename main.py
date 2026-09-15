@@ -1,48 +1,105 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from collectors.dtm import buscar_eventos as buscar_eventos_dtm
 
-BRASILIA = ZoneInfo("America/Sao_Paulo")
+agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 
-agora = datetime.now(BRASILIA)
+eventos = []
 
-# Evento de teste
-nome_evento = "DTM - Treino Livre"
+eventos.extend(buscar_eventos_dtm())
 
-inicio = datetime(
-    agora.year,
-    agora.month,
-    agora.day,
-    15,
-    0,
-    tzinfo=BRASILIA
-)
+# --------------------------------------------------
+# CABEÇALHO
+# --------------------------------------------------
 
-fim = datetime(
-    agora.year,
-    agora.month,
-    agora.day,
-    17,
-    0,
-    tzinfo=BRASILIA
-)
-
-print("MOTORSPORT RADAR")
-print("-" * 30)
-
-print(f"Agora:{agora.strftime('%d/%m/%Y %H:%M:%S')}")
+print("🏁 MOTORSPORT RADAR")
+print("-" * 40)
+print(f"Agora: {agora.strftime('%d/%m/%Y %H:%M:%S')}")
 print()
 
-print(f"Evento:{nome_evento}")
-print(f"Início:{inicio.strftime('%H:%M')}")
-print(f"Fim:{fim.strftime('%H:%M')}")
-print()
 
-if agora < inicio:
-    print("🟡 PRÓXIMO EVENTO")
+# --------------------------------------------------
+# SEPARAR EVENTOS POR STATUS
+# --------------------------------------------------
 
-elif inicio <= agora <= fim:
-    print("🟢 AO VIVO")
+ao_vivo = []
+proximos = []
+
+for evento in eventos:
+    inicio = evento["inicio"]
+    fim = evento["fim"]
+
+    if fim is not None and inicio <= agora <= fim:
+        ao_vivo.append(evento)
+
+    elif agora < inicio:
+        proximos.append(evento)
+
+# Ordenar os próximos pelo horário de início
+proximos.sort(key=lambda evento: evento["inicio"])
+
+
+# --------------------------------------------------
+# MOSTRAR AO VIVO
+# --------------------------------------------------
+
+print("🟢 AO VIVO AGORA")
+
+if not ao_vivo:
+    print("   Nenhum evento encontrado no momento.")
 
 else:
-    print("🔴 ENCERRADO")
+
+    for evento in ao_vivo:
+
+        tempo_restante = evento["fim"] - agora
+        minutos = int(tempo_restante.total_seconds() / 60)
+
+        print(f"🟢 {evento['nome']}")
+        print(f"   Categoria: {evento['categoria']}")
+        print(f"   Tipo: {evento['tipo']}")
+        print(f"   Acaba em {minutos} minutos!!")
+
+        transmissao = evento["transmissao"]
+
+        if transmissao["gratuito"]:
+            print(f"   📺 {transmissao['plataforma']} — GRÁTIS")
+
+        else:
+            print(f"   🔒 {transmissao['plataforma']} — ASSINATURA NECESSÁRIA")
+
+        print()
+
+
+# --------------------------------------------------
+# MOSTRAR PRÓXIMOS
+# --------------------------------------------------
+
+print()
+print("🟡 PRÓXIMOS EVENTOS")
+
+if not proximos:
+    print("   Nenhum próximo evento encontrado.")
+
+else:
+
+    for evento in proximos:
+
+        tempo_restante = evento["inicio"] - agora
+        minutos = int(tempo_restante.total_seconds() / 60)
+
+        print(f"🟡 {evento['nome']}")
+        print(f"   Categoria: {evento['categoria']}")
+        print(f"   Tipo: {evento['tipo']}")
+        print(f"   Começa em {minutos} minutos")
+
+        transmissao = evento["transmissao"]
+
+        if transmissao["gratuito"]:
+            print(f"   📺 {transmissao['plataforma']} — GRÁTIS")
+
+        else:
+            print(f"   🔒 {transmissao['plataforma']} — ASSINATURA NECESSÁRIA")
+
+        print()
