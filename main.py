@@ -1,7 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from collectors.dtm import buscar_eventos as buscar_eventos_dtm
+from collectors.calendario_dtm import buscar_eventos as buscar_eventos_dtm
 
 agora = datetime.now(ZoneInfo("America/Sao_Paulo"))
 

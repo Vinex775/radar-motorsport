@@ -4,18 +4,6 @@ from datetime import datetime, timezone
 
 API = "https://api.dtm.com/data"
 
-def testar_noticias():
-    resposta = requests.get(
-        API,
-        params={
-            "query": "newsByRaceSeries",
-            "raceSeries": "DTM"
-        }
-    )
-
-    print("Status:", resposta.status_code)
-    print(resposta.text[:5000])
-
 def buscar_proximo_evento():
     resposta = requests.get(
         API,
@@ -58,6 +46,9 @@ def buscar_sessoes_dtm(slug):
     evento = dados["events"][0]
 
     sessoes = []
+    if not evento["timetable"]:
+        print("O timetable ainda não foi publicado pela DTM.")
+        return []
 
     for sessao in evento["timetable"]:
         if sessao["raceSeries"] != "DTM":
@@ -65,17 +56,47 @@ def buscar_sessoes_dtm(slug):
 
         sessoes.append({
             "nome": sessao["headline"],
+            "categoria": "DTM",
             "tipo": sessao["label"],
             "inicio": datetime.fromisoformat(sessao["start"]),
-            "fim": datetime.fromisoformat(sessao["end"])
+            "fim": datetime.fromisoformat(sessao["end"]),
+            "transmissao": {
+                "plataforma": "A definir",
+                "gratuito": False,
+                "url": None
+            }
         })
 
     return sessoes
 
+def buscar_eventos():
+
+    evento = buscar_proximo_evento()
+
+    if evento is None:
+        return []
+
+    sessoes = buscar_sessoes_dtm(evento["slug"])
+
+    if sessoes:
+        return sessoes
+
+    return [{
+        "nome": evento["name"],
+        "categoria": "DTM",
+        "tipo": "Fim de semana",
+        "inicio": datetime.fromisoformat(evento["startTime"]),
+        "fim": datetime.fromisoformat(evento["endTime"]),
+        "transmissao": {
+            "plataforma": "A definir",
+            "gratuito": False,
+            "url": None
+        }
+    }]
 
 if __name__ == "__main__":
     evento = buscar_proximo_evento()
-    testar_noticias()
+
     if evento:
         print("PRÓXIMO EVENTO DTM")
         print("-------------------")

@@ -41,58 +41,40 @@ def buscar_eventos():
 
     evento_dtm = buscar_proximo_evento()
 
-    print("Próximo evento:", evento_dtm["name"])
+    if evento_dtm is None:
+        return []
 
-    resposta = requests.get(URL)
+    slug = evento_dtm["slug"]
 
-    soup = BeautifulSoup(resposta.text, "html.parser")
-
-    titulo = soup.find(
-        string="The race weekend at the Sachsenring on TV and via livestream"
+    resposta = requests.get(
+        "https://api.dtm.com/data",
+        params={
+            "query": "eventDetails",
+            "slug": slug
+        }
     )
 
-    if titulo is None:
-        print("Título não encontrado.")
-        return
-
-    # título → h1 → div → div(article)
-    artigo = titulo.parent.parent.parent
-
-    texto_artigo = artigo.get_text(
-        separator="\n",
-        strip=True
-    )
-
-    inicio_dtm = texto_artigo.find("DTM")
-
-    inicio_gt4 = texto_artigo.find(
-        "ADAC GT4 Germany",
-        inicio_dtm + 1
-    )
-
-    texto_dtm = texto_artigo[inicio_dtm:inicio_gt4]
-
-    linhas = texto_dtm.split("\n")
+    dados = resposta.json()
+    evento = dados["events"][0]
 
     eventos = []
-    data_atual = None
 
-    for i, linha in enumerate(linhas):
-        if re.match(r"^(Friday|Saturday|Sunday),", linha):
-            data_atual = linha
+    for sessao in evento["timetable"]:
 
-        elif re.match(r"^\d{2}:\d{2}", linha):
-            inicio, fim = interpretar_horario(data_atual, linha)
+        if sessao["raceSeries"] != "DTM":
+            continue
 
-            evento = {
-                "nome": linhas[i + 1],
-                "data": data_atual,
-                "horario": linha,
-                "transmissao": linhas[i + 2],
-                "inicio": inicio,
-                "fim": fim
+        eventos.append({
+            "nome": sessao["headline"],
+            "categoria": "DTM",
+            "tipo": sessao["label"],
+            "inicio": datetime.fromisoformat(sessao["start"]),
+            "fim": datetime.fromisoformat(sessao["end"]),
+            "transmissao": {
+                "plataforma": "A definir",
+                "gratuito": False,
+                "url": None
             }
-
-            eventos.append(evento)
+        })
 
     return eventos
