@@ -75,7 +75,7 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.1"
+    server_version = "APEX-Motorsport-Radar/1.1.1"
 
     def log_message(self, format: str, *args) -> None:
         # Mantém o terminal limpo, exceto erros HTTP.
@@ -123,7 +123,7 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             self._json(200, radar.dashboard_data())
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.1.0"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.1.1"})
         elif path == "/api/sources":
             self._json(200, {"sources": radar.load_watch_sources()})
         elif path == "/api/discover-search":

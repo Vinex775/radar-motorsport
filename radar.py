@@ -100,6 +100,8 @@ def _parse_dt(value: str | None) -> datetime | None:
 
 def dashboard_data() -> dict[str, Any]:
     now = datetime.now(timezone.utc)
+    # Limpa também os falsos positivos já salvos por versões anteriores.
+    db.purge_irrelevant_discoveries()
     events = db.get_events()
     for event in events:
         event["status"] = event_status(event, now)

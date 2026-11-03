@@ -106,6 +106,21 @@ def get_events() -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def purge_irrelevant_discoveries() -> int:
+    """Remove do SQLite pistas antigas que não passam no filtro de motorsport."""
+    from collectors.discovery import is_motorsport_result
+
+    with connect() as conn:
+        rows = conn.execute("SELECT id, title, summary FROM discoveries").fetchall()
+        invalid_ids = [
+            row["id"] for row in rows
+            if not is_motorsport_result(row["title"], row["summary"] or "")
+        ]
+        if invalid_ids:
+            conn.executemany("DELETE FROM discoveries WHERE id = ?", [(item_id,) for item_id in invalid_ids])
+    return len(invalid_ids)
+
+
 def get_discoveries(limit: int = 60) -> list[dict[str, Any]]:
     with connect() as conn:
         rows = conn.execute("SELECT * FROM discoveries ORDER BY published_utc DESC LIMIT ?", (limit,)).fetchall()
