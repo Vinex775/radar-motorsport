@@ -8,7 +8,7 @@ from unittest.mock import patch
 import db
 from app import _manual_event
 from collectors.discovery import classify_access, detect_platform, detect_series, search_custom_discovery_leads, locale_for_query, is_motorsport_result, is_reaction_or_commentary, is_stale_watch_guide, EXCLUDED_NEWS_TERMS
-from collectors.youtube import search_live_videos
+from collectors.youtube import search_live_videos, GLOBAL_LIVE_QUERY
 from radar import event_status, load_watch_sources, load_search_presets
 
 
@@ -24,11 +24,13 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(detect_series("Swedish junior karting livestream"), "Karting")
         self.assertEqual(detect_series("FIA World Endurance Championship WEC"), "FIA WEC")
         self.assertEqual(detect_series("WorldSBK race"), "WorldSBK")
+        self.assertEqual(detect_platform("FlyingFinn.tv and YouTube broadcast"), "FlyingFinn.tv, YouTube")
 
     def test_broader_motorsport_detection(self):
         self.assertEqual(detect_series("Swedish club karting series C livestream"), "Karting")
         self.assertEqual(detect_series("British Hillclimb Championship live"), "Hillclimb")
         self.assertEqual(detect_series("NHRA drag racing live stream"), "Drag racing")
+        self.assertEqual(detect_series("Autosuunnistus SM Riihimaki live broadcast"), "Autosuunnistus / precision navigation motorsport")
         self.assertEqual(detect_series("WorldSBK race"), "WorldSBK")
         self.assertEqual(classify_access("All rounds are LIVE and FREE on the official channel"), "free")
         self.assertEqual(classify_access("Free practice begins at 10:00"), "unknown")
@@ -61,13 +63,14 @@ class DiscoveryTests(unittest.TestCase):
         self.assertTrue(is_reaction_or_commentary("F1 race watchalong live", "Second screen commentary"))
         self.assertFalse(is_reaction_or_commentary("Official live race feed: Swedish Karting Series C"))
 
-    def test_filters_stale_watch_guides(self):
+    def test_old_watch_guides_are_historical_not_discarded(self):
         now = datetime(2026, 11, 3, 12, 0, tzinfo=timezone.utc)
         old = "2026-11-01T12:00:00+00:00"
         fresh = "2026-11-03T11:00:00+00:00"
-        self.assertTrue(is_stale_watch_guide(old, "GP Mexico 2026: where to watch live" , now=now))
+        self.assertTrue(is_stale_watch_guide(old, "GP Mexico 2026: where to watch live", now=now))
         self.assertFalse(is_stale_watch_guide(fresh, "GP Mexico 2026: where to watch live", now=now))
         self.assertFalse(is_stale_watch_guide(old, "Preview: next weekend's Swedish karting race", now=now))
+        self.assertTrue(is_motorsport_result("GP Mexico 2026: where to watch live", "Formula 1 race"))
 
     def test_query_excludes_political_noise(self):
         self.assertIn("-election", EXCLUDED_NEWS_TERMS)
@@ -99,8 +102,11 @@ class DiscoveryTests(unittest.TestCase):
         </channel></rss>'''
         with patch("collectors.discovery._fetch_query", return_value=rss):
             results = search_custom_discovery_leads("Swedish karting series C")
-        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results), 2)
         self.assertEqual(results[0]["series"], "Karting")
+        historical = next(item for item in results if item["id"] != results[0]["id"])
+        self.assertEqual(historical["lead_status"], "historical_reference")
+        self.assertFalse(historical["is_verified_live"])
 
     def test_custom_news_search_parses_rss(self):
         rss = b'''<?xml version="1.0"?><rss><channel><item>
@@ -117,6 +123,23 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(results[0]["access"], "free")
         self.assertIn("editorial lead", results[0]["note"])
 
+
+    def test_custom_search_keeps_historical_broadcast_reference(self):
+        rss = b'''<?xml version="1.0"?><rss><channel><item>
+          <title>FlyingFinn.tv live: Autosuunnistus SM Riihimaki October 24</title>
+          <link>https://example.com/flyingfinn</link>
+          <description>Free live broadcast on Moottoriurheilu.tv YouTube channel. Autosuunnistus competition.</description>
+          <pubDate>Wed, 21 Oct 2026 10:00:00 GMT</pubDate>
+          <source>Autourheilu</source>
+        </item></channel></rss>'''
+        with patch("collectors.discovery._fetch_query", return_value=rss):
+            results = search_custom_discovery_leads("Autosuunnistus SM Finland")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["lead_status"], "historical_reference")
+        self.assertEqual(results[0]["platform"], "FlyingFinn.tv, Moottoriurheilu.tv, YouTube")
+        self.assertEqual(results[0]["access"], "free")
+        self.assertFalse(results[0]["is_verified_live"])
+
     def test_regional_news_locale(self):
         self.assertEqual(locale_for_query("karting live Brazil"), ("pt-BR", "BR", "BR:pt"))
         self.assertEqual(locale_for_query("Swedish karting series"), ("sv-SE", "SE", "SE:sv"))
@@ -126,6 +149,44 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(locale_for_query("karting ao vivo Suécia"), ("sv-SE", "SE", "SE:sv"))
         self.assertEqual(locale_for_query("corrida ao vivo"), ("pt-BR", "BR", "BR:pt"))
         self.assertEqual(locale_for_query("French rally championship"), ("fr-FR", "FR", "FR:fr"))
+
+
+    def test_youtube_live_scan_uses_broad_motorsport_query_and_filters_reacts(self):
+        import io
+        import json
+        from urllib.parse import parse_qs, urlparse
+
+        payload = {
+            "items": [
+                {"id": {"videoId": "race123"}, "snippet": {
+                    "title": "Swedish Karting Series C — LIVE Race",
+                    "description": "Official race broadcast from the circuit.",
+                    "channelTitle": "Regional Karting TV",
+                    "channelId": "channel1",
+                    "publishedAt": "2026-11-03T10:00:00Z",
+                    "liveBroadcastContent": "live",
+                }},
+                {"id": {"videoId": "react123"}, "snippet": {
+                    "title": "React ao vivo: Swedish karting race",
+                    "description": "Watch-along and second screen reaction.",
+                    "channelTitle": "Reaction channel",
+                    "liveBroadcastContent": "live",
+                }},
+            ]
+        }
+        response = io.BytesIO(json.dumps(payload).encode("utf-8"))
+        with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}), patch("collectors.youtube.urlopen", return_value=response) as mocked:
+            result = search_live_videos("motorsport")
+        self.assertTrue(result["configured"])
+        self.assertEqual(len(result["items"]), 1)
+        self.assertTrue(result["items"][0]["is_verified_live"])
+        self.assertEqual(result["items"][0]["status"], "live_now")
+        query = parse_qs(urlparse(mocked.call_args.args[0].full_url).query)["q"][0]
+        self.assertIn("karting", query)
+        self.assertIn("motocross", query)
+        self.assertIn("speedway", query)
+        self.assertIn("|", query)  # OR terms broaden the global scan across disciplines.
+        self.assertEqual(result["items"][0]["url"], "https://www.youtube.com/watch?v=race123")
 
     def test_youtube_api_optional_key(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -159,8 +220,11 @@ class EventTests(unittest.TestCase):
                     {"id": "kart", "title": "Swedish Karting Series C live stream", "url": "https://example.com/kart"},
                 ])
                 removed = db.purge_irrelevant_discoveries()
-                self.assertEqual(removed, 3)
-                self.assertEqual([item["id"] for item in db.get_discoveries()], ["kart"])
+                self.assertEqual(removed, 2)
+                saved = db.get_discoveries()
+                self.assertEqual({item["id"] for item in saved}, {"stale", "kart"})
+                stale = next(item for item in saved if item["id"] == "stale")
+                self.assertEqual(stale["lead_status"], "historical_reference")
             finally:
                 db.DB_PATH = old_path
 
@@ -186,6 +250,21 @@ class EventTests(unittest.TestCase):
         invalid, error = _manual_event({**valid, "access": "maybe"})
         self.assertIsNone(invalid)
         self.assertIn("access", error)
+
+
+    def test_database_migrates_legacy_discoveries_table(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_path = db.DB_PATH
+            db.DB_PATH = Path(directory) / "legacy.sqlite3"
+            try:
+                with db.connect() as conn:
+                    conn.execute("CREATE TABLE discoveries (id TEXT PRIMARY KEY, title TEXT NOT NULL, summary TEXT, url TEXT NOT NULL UNIQUE, published_utc TEXT, source_name TEXT, series TEXT, platform TEXT, access TEXT, note TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
+                db.init_db()
+                with db.connect() as conn:
+                    columns = {row[1] for row in conn.execute("PRAGMA table_info(discoveries)")}
+                self.assertIn("lead_status", columns)
+            finally:
+                db.DB_PATH = old_path
 
     def test_database_upsert(self):
         with tempfile.TemporaryDirectory() as directory:
