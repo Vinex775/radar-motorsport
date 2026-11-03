@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import db
 from app import _manual_event
-from collectors.discovery import classify_access, detect_platform, detect_series, buscar_pistas_personalizadas, locale_for_query
+from collectors.discovery import classify_access, detect_platform, detect_series, buscar_pistas_personalizadas, locale_for_query, is_motorsport_result, EXCLUDED_NEWS_TERMS
 from collectors.youtube import buscar_lives
 from radar import event_status, load_watch_sources, load_search_presets
 
@@ -33,6 +33,51 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(classify_access("All rounds are LIVE and FREE on the official channel"), "free")
         self.assertEqual(classify_access("Free practice begins at 10:00"), "unknown")
         self.assertEqual(classify_access("Acesso pago por evento"), "ppv")
+
+    def test_rejects_political_rallies(self):
+        political_titles = [
+            "WATCH LIVE: Senate candidate Ashley Hinson holds election rally in Des Moines",
+            "WATCH LIVE: Abdul El-Sayed holds a rally in Detroit, Michigan",
+            "Iowa GOP candidate holds rally as Election Day approaches",
+            "Vance rallies GOP voters in New York, Ohio",
+        ]
+        for title in political_titles:
+            with self.subTest(title=title):
+                self.assertFalse(is_motorsport_result(title, "Live coverage and latest updates"))
+
+    def test_keeps_real_rally_motorsport_results(self):
+        valid_titles = [
+            "WRC Rally Finland: watch the special stages live",
+            "Swedish Rally Championship livestream with rally cars and co-drivers",
+            "Rallycross championship race weekend live stream",
+            "Karting Series C livestream from Sweden",
+        ]
+        for title in valid_titles:
+            with self.subTest(title=title):
+                self.assertTrue(is_motorsport_result(title))
+
+    def test_query_excludes_political_noise(self):
+        self.assertIn("-election", EXCLUDED_NEWS_TERMS)
+        self.assertIn("-candidate", EXCLUDED_NEWS_TERMS)
+        self.assertIn("-GOP", EXCLUDED_NEWS_TERMS)
+
+    def test_custom_news_search_filters_political_rss_items(self):
+        rss = b'''<?xml version="1.0"?><rss><channel>
+          <item><title>WATCH LIVE: Senate candidate holds election rally</title>
+            <link>https://example.com/political-rally</link>
+            <description>Election day coverage</description>
+            <pubDate>Tue, 03 Nov 2026 08:00:00 GMT</pubDate><source>Example News</source>
+          </item>
+          <item><title>Swedish Karting Series C live stream free on YouTube</title>
+            <link>https://example.com/kart-live</link>
+            <description>Race live and free</description>
+            <pubDate>Tue, 03 Nov 2026 08:00:00 GMT</pubDate><source>Example Motorsport</source>
+          </item>
+        </channel></rss>'''
+        with patch("collectors.discovery._fetch_query", return_value=rss):
+            results = buscar_pistas_personalizadas("Swedish karting series C")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["series"], "Karting")
 
     def test_custom_news_search_parses_rss(self):
         rss = b'''<?xml version="1.0"?><rss><channel><item>
@@ -78,6 +123,22 @@ class CatalogTests(unittest.TestCase):
 
 
 class EventTests(unittest.TestCase):
+    def test_database_purges_old_political_discoveries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_path = db.DB_PATH
+            db.DB_PATH = Path(directory) / "radar.sqlite3"
+            try:
+                db.init_db()
+                db.save_discoveries([
+                    {"id": "political", "title": "Senate candidate holds election rally", "url": "https://example.com/politics"},
+                    {"id": "kart", "title": "Swedish Karting Series C live stream", "url": "https://example.com/kart"},
+                ])
+                removed = db.purge_irrelevant_discoveries()
+                self.assertEqual(removed, 1)
+                self.assertEqual([item["id"] for item in db.get_discoveries()], ["kart"])
+            finally:
+                db.DB_PATH = old_path
+
     def test_event_status(self):
         now = datetime.now(timezone.utc)
         self.assertEqual(event_status({"start_utc": (now - timedelta(minutes=20)).isoformat(), "end_utc": (now + timedelta(minutes=40)).isoformat()}, now), "live")
