@@ -1,5 +1,12 @@
 # APEX — Motorsport Radar
 
+## Atualização 1.1.1
+
+- Corrigido falso positivo de notícias políticas/comícios que apareciam como "Rally".
+- Consultas ao Google News agora excluem termos políticos e os resultados passam por validação local de contexto de motorsport.
+- Resultados antigos irrelevantes já salvos no SQLite são removidos automaticamente ao carregar o painel.
+- Adicionados testes de regressão para manchetes eleitorais e notícias legítimas de rally automobilístico.
+
 **Radar open-source para descobrir corridas e transmissões de motorsport no mundo todo.** Do kart regional e campeonatos de clubes até Fórmula 1, endurance, rally, drift, arrancada e corridas de motos.
 
 O APEX é um agregador de descoberta: ele aponta calendários, notícias, canais e páginas oficiais. **Não hospeda vídeos, não retransmite corridas e não contorna paywalls ou bloqueios territoriais.**
