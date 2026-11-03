@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,24 +14,24 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="Motorsport Radar início">
+      <a class="brand" href="/" aria-label="APEX Motorsport Radar home">
         <span class="brand-mark">A</span>
         <span class="brand-copy"><strong>APEX</strong><small>MOTORSPORT RADAR</small></span>
       </a>
       <div class="topbar-right">
-        <span class="local-clock" id="local-clock">HORÁRIO DE BRASÍLIA</span>
-        <button class="button button-outline" id="notify-button" type="button">Ativar alertas</button>
-        <button class="button button-primary" id="refresh-button" type="button"><span class="refresh-icon">↻</span> Atualizar radar</button>
+        <span class="local-clock" id="local-clock">LOCAL TIME</span>
+        <button class="button button-outline" id="notify-button" type="button">Enable alerts</button>
+        <button class="button button-primary" id="refresh-button" type="button"><span class="refresh-icon">↻</span> Refresh radar</button>
       </div>
     </header>
 
     <main>
       <section class="hero">
         <div class="hero-copy">
-          <div class="eyebrow"><span class="pulse-dot"></span> VARREDURA GLOBAL DE CORRIDAS</div>
-          <h1>ENCONTRE A<br><em>PRÓXIMA LIVE.</em></h1>
-          <p>Do kart regional à Fórmula 1. Um só lugar para descobrir o que está correndo e onde assistir.</p>
-          <div class="hero-footnote">Não é uma plataforma de streaming. É o radar que aponta o caminho até a transmissão.</div>
+          <div class="eyebrow"><span class="pulse-dot"></span> GLOBAL MOTORSPORT SCAN</div>
+          <h1>FIND THE<br><em>NEXT LIVE.</em></h1>
+          <p>From regional karting to Formula 1. One place to discover what is racing and where to watch.</p>
+          <div class="hero-footnote">APEX is not a streaming platform. It points you to the broadcast.</div>
         </div>
         <div class="hero-graphic" aria-hidden="true">
           <div class="track track-one"></div><div class="track track-two"></div>
@@ -40,81 +40,81 @@
         </div>
       </section>
 
-      <section class="stats-grid" aria-label="Resumo do radar">
-        <article class="stat-card stat-live"><span class="stat-label"><i></i> JANELAS EM ANDAMENTO</span><strong id="stat-live">—</strong><small>Conforme horário publicado</small></article>
-        <article class="stat-card"><span class="stat-label">PRÓXIMOS EVENTOS</span><strong id="stat-upcoming">—</strong><small>Na programação coletada</small></article>
-        <article class="stat-card"><span class="stat-label">PISTAS DE TRANSMISSÃO</span><strong id="stat-leads">—</strong><small>Notícias para investigar</small></article>
-        <article class="stat-card"><span class="stat-label">ÚLTIMA VARREDURA</span><strong class="stat-time" id="last-refresh">Ainda não executada</strong><small>Atualize para buscar dados novos</small></article>
+      <section class="stats-grid" aria-label="Radar overview">
+        <article class="stat-card stat-live"><span class="stat-label"><i></i> SCHEDULE WINDOWS ACTIVE</span><strong id="stat-live">—</strong><small>Based on published session times</small></article>
+        <article class="stat-card"><span class="stat-label">UPCOMING EVENTS</span><strong id="stat-upcoming">—</strong><small>From collected schedules</small></article>
+        <article class="stat-card"><span class="stat-label">BROADCAST LEADS</span><strong id="stat-leads">—</strong><small>News to investigate</small></article>
+        <article class="stat-card"><span class="stat-label">LAST SCAN</span><strong class="stat-time" id="last-refresh">Not run yet</strong><small>Refresh to find new data</small></article>
       </section>
 
-      <nav class="main-tabs" aria-label="Seções do radar">
-        <button class="tab-button active" data-tab="events">Calendário & lives <span id="events-count">0</span></button>
-        <button class="tab-button" data-tab="discover">Descobrir transmissões <span id="discover-count">0</span></button>
-        <button class="tab-button" data-tab="sources">Onde assistir</button>
+      <nav class="main-tabs" aria-label="Radar sections">
+        <button class="tab-button active" data-tab="events">Schedule & events <span id="events-count">0</span></button>
+        <button class="tab-button" data-tab="discover">Discover broadcasts <span id="discover-count">0</span></button>
+        <button class="tab-button" data-tab="sources">Where to watch</button>
       </nav>
 
       <section class="tab-panel active" id="panel-events">
         <div class="section-heading">
-          <div><div class="eyebrow">TRACKING BOARD / 01</div><h2>NA PISTA</h2><p>Eventos encontrados pelos coletores e transmissões cadastradas.</p></div>
-          <button class="button button-outline" id="add-event-button" type="button">＋ Adicionar evento</button>
+          <div><div class="eyebrow">TRACKING BOARD / 01</div><h2>ON TRACK</h2><p>Events found by collectors and manually added broadcasts.</p></div>
+          <button class="button button-outline" id="add-event-button" type="button">＋ Add event</button>
         </div>
         <div class="filter-bar">
-          <label class="search-box"><span>⌕</span><input id="event-search" type="search" placeholder="Buscar categoria, etapa, país..."></label>
-          <select id="status-filter" aria-label="Filtrar por status"><option value="all">Todos os status</option><option value="live">Em andamento</option><option value="upcoming">Próximos</option></select>
-          <select id="access-filter" aria-label="Filtrar por acesso"><option value="all">Qualquer acesso</option><option value="free">Grátis</option><option value="subscription">Assinatura</option><option value="ppv">Pay-per-view</option><option value="unknown">Não confirmado</option></select>
+          <label class="search-box"><span>⌕</span><input id="event-search" type="search" placeholder="Search category, round, country..."></label>
+          <select id="status-filter" aria-label="Filter by status"><option value="all">All statuses</option><option value="live">In progress</option><option value="upcoming">Upcoming</option></select>
+          <select id="access-filter" aria-label="Filter by access"><option value="all">Any access</option><option value="free">Free</option><option value="subscription">Subscription</option><option value="ppv">Pay-per-view</option><option value="unknown">Unknown</option></select>
         </div>
-        <div class="event-grid" id="event-grid"><div class="empty-state"><div class="empty-icon">⌁</div><strong>O radar ainda não fez a primeira varredura.</strong><p>Clique em “Atualizar radar” para buscar eventos e pistas de transmissão.</p></div></div>
-        <p class="data-note">“Em andamento” indica que a janela de horário da sessão está ativa; não garante que o player esteja transmitindo neste instante.</p>
+        <div class="event-grid" id="event-grid"><div class="empty-state"><div class="empty-icon">⌁</div><strong>The radar has not run its first scan yet.</strong><p>Click “Refresh radar” to find events and broadcast leads.</p></div></div>
+        <p class="data-note">“In progress” means the scheduled session window is active; it does not guarantee that a player is broadcasting right now.</p>
       </section>
 
       <section class="tab-panel" id="panel-discover">
         <div class="section-heading">
-          <div><div class="eyebrow">SIGNAL SCANNER / 02</div><h2>PISTAS ENCONTRADAS</h2><p>Notícias e anúncios que podem levar a uma transmissão. Abra a fonte para verificar.</p></div>
+          <div><div class="eyebrow">SIGNAL SCANNER / 02</div><h2>DISCOVERY LEADS</h2><p>News and announcements that may lead to a broadcast. Open the source to verify.</p></div>
         </div>
-        <div class="notice-strip"><span>!</span><div><strong>Importante:</strong> uma notícia sobre uma live não é prova de que ela esteja acontecendo agora. O radar só confirma preço ou plataforma quando a informação está explícita no texto encontrado.</div></div>
+        <div class="notice-strip"><span>!</span><div><strong>Important:</strong> A news article about a live stream is not proof that it is happening now. APEX only classifies access or platform when the available text explicitly supports it.</div></div>
         <div class="live-finder">
-          <div class="finder-copy"><strong>BUSCA ABERTA / QUALQUER CATEGORIA</strong><span>Experimente algo específico: “Swedish karting series C”, “Brazil hill climb” ou “club racing live”.</span></div>
-          <div class="finder-presets"><label class="preset-field">ATALHOS DE MODALIDADE<select id="category-preset"><option value="">Escolha uma modalidade para preencher a busca</option></select></label><label class="preset-field">PAÍS / REGIÃO (OPCIONAL)<input id="region-search" type="search" placeholder="Ex.: Suécia, Franca, Brasil, Noruega"></label></div>
-          <div class="finder-controls"><input id="live-search" type="search" value="motorsport" placeholder="Qualquer categoria, campeonato, equipe ou país"><button class="button button-primary" id="news-search" type="button">Buscar no radar</button><button class="button button-outline" id="youtube-search" type="button">YouTube Live ↗</button><button class="button button-outline" id="twitch-search" type="button">Twitch ↗</button><button class="button button-outline" id="web-search" type="button">Web ↗</button></div>
-          <small>“Buscar no radar” consulta notícias e anúncios recentes via RSS. YouTube Live usa a API oficial quando configurada; sem chave, abre a busca pública. Nenhuma dessas buscas, sozinha, confirma preço, geobloqueio ou legitimidade do canal.</small>
+          <div class="finder-copy"><strong>OPEN SEARCH / ANY CATEGORY</strong><span>Try a specific query: “Swedish karting series C”, “Brazil hill climb”, or “club racing live”.</span></div>
+          <div class="finder-presets"><label class="preset-field">DISCIPLINE SHORTCUTS<select id="category-preset"><option value="">Choose a discipline to fill the search</option></select></label><label class="preset-field">COUNTRY / REGION (OPTIONAL)<input id="region-search" type="search" placeholder="E.g. Sweden, France, Brazil, Norway"></label></div>
+          <div class="finder-controls"><input id="live-search" type="search" value="motorsport" placeholder="Any discipline, championship, team, or country"><button class="button button-primary" id="news-search" type="button">Search APEX</button><button class="button button-outline" id="youtube-search" type="button">YouTube Live ↗</button><button class="button button-outline" id="twitch-search" type="button">Twitch ↗</button><button class="button button-outline" id="web-search" type="button">Web ↗</button></div>
+          <small>“Search APEX” queries recent news and announcements via RSS. YouTube Live uses the official API when configured; without an API key, it opens public search. None of these searches alone confirms price, regional restrictions, or channel legitimacy.</small>
           <div class="platform-results" id="platform-results"></div>
         </div>
-        <div class="discover-list" id="discover-list"><div class="empty-state"><strong>Nenhuma pista carregada.</strong><p>Execute uma varredura para procurar anúncios de livestream, karting, rally, endurance e outras categorias.</p></div></div>
+        <div class="discover-list" id="discover-list"><div class="empty-state"><strong>No discovery leads loaded.</strong><p>Run a scan to search for livestream announcements across karting, rally, endurance, and other disciplines.</p></div></div>
       </section>
 
       <section class="tab-panel" id="panel-sources">
         <div class="section-heading">
-          <div><div class="eyebrow">OFFICIAL WATCH DIRECTORY / 03</div><h2>ONDE ASSISTIR</h2><p>Atalhos para páginas oficiais. Região e direitos de transmissão podem alterar a disponibilidade.</p></div>
+          <div><div class="eyebrow">OFFICIAL WATCH DIRECTORY / 03</div><h2>ONDE ASSISTIR</h2><p>Shortcuts to official pages. Availability may vary by region and broadcast rights.</p></div>
         </div>
         <div class="source-grid" id="source-grid"></div>
       </section>
 
       <section class="bottom-callout">
-        <div class="callout-icon">＋</div><div><strong>Encontrou uma corrida obscura?</strong><p>Cadastre uma transmissão de kart, rally regional, campeonato nacional ou qualquer categoria que ainda não apareça no radar.</p></div><button class="button button-primary" id="add-event-button-bottom" type="button">Cadastrar transmissão</button>
+        <div class="callout-icon">＋</div><div><strong>Found an obscure race?</strong><p>Add a karting stream, regional rally, national championship, or any broadcast not yet listed in APEX.</p></div><button class="button button-primary" id="add-event-button-bottom" type="button">Add a broadcast</button>
       </section>
     </main>
 
-    <footer><span>APEX / MOTORSPORT RADAR</span><span>Feito para encontrar corrida onde quer que ela esteja.</span><span>v1.1.1 · OPEN SOURCE</span></footer>
+    <footer><span>APEX / MOTORSPORT RADAR</span><span>Built to find racing wherever it happens.</span><span>v1.2.0 · OPEN SOURCE</span></footer>
   </div>
 
   <dialog id="event-dialog" class="event-dialog">
     <form id="event-form" method="dialog">
-      <div class="dialog-heading"><div><div class="eyebrow">MANUAL ENTRY</div><h2>NOVO EVENTO</h2></div><button class="dialog-close" type="button" id="close-dialog" aria-label="Fechar">×</button></div>
-      <p class="dialog-intro">Use este cadastro para campeonatos menores ou transmissões que ainda não foram descobertas automaticamente.</p>
+      <div class="dialog-heading"><div><div class="eyebrow">MANUAL ENTRY</div><h2>NEW EVENT</h2></div><button class="dialog-close" type="button" id="close-dialog" aria-label="Close">×</button></div>
+      <p class="dialog-intro">Use this form for smaller championships or broadcasts not yet discovered automatically.</p>
       <div class="form-grid">
-        <label class="field field-wide">Evento / etapa<input name="name" required maxlength="180" placeholder="Ex.: Campeonato Sueco de Kart — Série C"></label>
-        <label class="field">Categoria / campeonato<input name="series" required maxlength="100" placeholder="Ex.: Karting"></label>
-        <label class="field">Tipo de sessão<input name="kind" placeholder="Corrida, treino, classificação..."></label>
-        <label class="field">Início (horário local)<input name="start" type="datetime-local" required></label>
-        <label class="field">Fim (opcional)<input name="end" type="datetime-local"></label>
-        <label class="field">Plataforma<input name="platform" required placeholder="YouTube, Twitch, TV... "></label>
-        <label class="field">Tipo de acesso<select name="access" required><option value="unknown">Não confirmado</option><option value="free">Grátis</option><option value="subscription">Assinatura</option><option value="ppv">Pay-per-view</option></select></label>
-        <label class="field field-wide">Link direto da live (opcional)<input name="stream_url" type="url" placeholder="https://..."></label>
-        <label class="field field-wide">Página oficial / calendário (opcional)<input name="watch_url" type="url" placeholder="https://..."></label>
-        <label class="field">Região<input name="region" placeholder="Ex.: Suécia / Global"></label>
-        <label class="field">Modalidade<input name="category" placeholder="Ex.: Kart / Turismo / Rally"></label>
+        <label class="field field-wide">Event / round<input name="name" required maxlength="180" placeholder="E.g. Swedish Karting Championship — Series C"></label>
+        <label class="field">Discipline / championship<input name="series" required maxlength="100" placeholder="Ex.: Karting"></label>
+        <label class="field">Session type<input name="kind" placeholder="Race, practice, qualifying..."></label>
+        <label class="field">Start (local time)<input name="start" type="datetime-local" required></label>
+        <label class="field">End (optional)<input name="end" type="datetime-local"></label>
+        <label class="field">Platform<input name="platform" required placeholder="YouTube, Twitch, TV... "></label>
+        <label class="field">Access type<select name="access" required><option value="unknown">Unknown</option><option value="free">Free</option><option value="subscription">Subscription</option><option value="ppv">Pay-per-view</option></select></label>
+        <label class="field field-wide">Direct stream URL (optional)<input name="stream_url" type="url" placeholder="https://..."></label>
+        <label class="field field-wide">Official page / calendar (optional)<input name="watch_url" type="url" placeholder="https://..."></label>
+        <label class="field">Region<input name="region" placeholder="E.g. Sweden / Global"></label>
+        <label class="field">Discipline<input name="category" placeholder="Ex.: Kart / Turismo / Rally"></label>
       </div>
-      <div class="form-actions"><span id="form-message" role="status"></span><button class="button button-outline" type="button" id="cancel-dialog">Cancelar</button><button class="button button-primary" type="submit">Salvar no radar</button></div>
+      <div class="form-actions"><span id="form-message" role="status"></span><button class="button button-outline" type="button" id="cancel-dialog">Cancel</button><button class="button button-primary" type="submit">Save to APEX</button></div>
     </form>
   </dialog>
 
