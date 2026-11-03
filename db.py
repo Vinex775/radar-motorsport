@@ -53,6 +53,7 @@ def init_db() -> None:
             platform TEXT,
             access TEXT,
             note TEXT,
+            lead_status TEXT NOT NULL DEFAULT 'unverified_lead',
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS settings (
@@ -60,6 +61,10 @@ def init_db() -> None:
             value TEXT NOT NULL
         );
         """)
+        # Safe, additive migration for databases created by earlier APEX versions.
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(discoveries)").fetchall()}
+        if "lead_status" not in columns:
+            conn.execute("ALTER TABLE discoveries ADD COLUMN lead_status TEXT NOT NULL DEFAULT 'unverified_lead'")
 
 
 def upsert_event(event: dict[str, Any], source: str) -> None:
@@ -88,15 +93,17 @@ def save_discoveries(items: list[dict[str, Any]]) -> None:
     with connect() as conn:
         for item in items:
             conn.execute("""
-            INSERT INTO discoveries (id, title, summary, url, published_utc, source_name, series, platform, access, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO discoveries (id, title, summary, url, published_utc, source_name, series, platform, access, note, lead_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(url) DO UPDATE SET
                 title=excluded.title, summary=excluded.summary, published_utc=excluded.published_utc,
                 source_name=excluded.source_name, series=excluded.series, platform=excluded.platform,
-                access=excluded.access, note=excluded.note, updated_at=CURRENT_TIMESTAMP
+                access=excluded.access, note=excluded.note, lead_status=excluded.lead_status,
+                updated_at=CURRENT_TIMESTAMP
             """, (
                 item["id"], item["title"], item.get("summary"), item["url"], item.get("published"),
-                item.get("source_name"), item.get("series"), item.get("platform"), item.get("access"), item.get("note"),
+                item.get("source_name"), item.get("series"), item.get("platform"), item.get("access"),
+                item.get("note"), item.get("lead_status", "unverified_lead"),
             ))
 
 
@@ -107,15 +114,20 @@ def get_events() -> list[dict[str, Any]]:
 
 
 def purge_irrelevant_discoveries() -> int:
-    """Remove stored leads that fail motorsport, reaction, or staleness checks."""
-    from collectors.discovery import is_valid_discovery
+    """Remove non-motorsport/reaction noise, but retain old articles as historical leads."""
+    from collectors.discovery import is_valid_discovery, is_stale_watch_guide
 
     with connect() as conn:
         rows = conn.execute("SELECT id, title, summary, published_utc FROM discoveries").fetchall()
-        invalid_ids = [
-            row["id"] for row in rows
-            if not is_valid_discovery(row["title"], row["summary"] or "", row["published_utc"])
-        ]
+        invalid_ids = []
+        for row in rows:
+            if not is_valid_discovery(row["title"], row["summary"] or "", row["published_utc"]):
+                invalid_ids.append(row["id"])
+                continue
+            status = "historical_reference" if is_stale_watch_guide(
+                row["published_utc"], row["title"], row["summary"] or ""
+            ) else "unverified_lead"
+            conn.execute("UPDATE discoveries SET lead_status=? WHERE id=?", (status, row["id"]))
         if invalid_ids:
             conn.executemany("DELETE FROM discoveries WHERE id = ?", [(item_id,) for item_id in invalid_ids])
     return len(invalid_ids)
@@ -123,7 +135,7 @@ def purge_irrelevant_discoveries() -> int:
 
 def get_discoveries(limit: int = 60) -> list[dict[str, Any]]:
     with connect() as conn:
-        rows = conn.execute("SELECT * FROM discoveries ORDER BY published_utc DESC LIMIT ?", (limit,)).fetchall()
+        rows = conn.execute("SELECT * FROM discoveries ORDER BY CASE WHEN lead_status='historical_reference' THEN 1 ELSE 0 END, published_utc DESC LIMIT ?", (limit,)).fetchall()
     return [dict(row) for row in rows]
 
 
