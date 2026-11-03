@@ -69,17 +69,17 @@
 
       <section class="tab-panel" id="panel-discover">
         <div class="section-heading">
-          <div><div class="eyebrow">SIGNAL SCANNER / 02</div><h2>DISCOVERY LEADS</h2><p>News and announcements that may lead to a broadcast. Open the source to verify.</p></div>
+          <div><div class="eyebrow">SIGNAL SCANNER / 02</div><h2>LIVE NOW & DISCOVERY</h2><p>Find races happening right now first. Historical articles are retained as clues, never presented as current broadcasts.</p></div>
         </div>
-        <div class="notice-strip"><span>!</span><div><strong>Important:</strong> A news article about a live stream is not proof that it is happening now. APEX only classifies access or platform when the available text explicitly supports it.</div></div>
+        <div class="notice-strip"><span>!</span><div><strong>Live verification:</strong> A schedule window or news article is not a live stream. The YouTube API scan only lists videos YouTube currently marks as live. Other platform searches are discovery leads and must be checked manually.</div></div>
         <div class="live-finder">
-          <div class="finder-copy"><strong>OPEN SEARCH / ANY CATEGORY</strong><span>Try a specific query: “Swedish karting series C”, “Brazil hill climb”, or “club racing live”.</span></div>
+          <div class="finder-copy"><strong>SCAN FOR RACES LIVE RIGHT NOW</strong><span>Leave “motorsport” for a broad scan, or narrow it to a series, circuit, or country. YouTube API is optional.</span></div>
           <div class="finder-presets"><label class="preset-field">DISCIPLINE SHORTCUTS<select id="category-preset"><option value="">Choose a discipline to fill the search</option></select></label><label class="preset-field">COUNTRY / REGION (OPTIONAL)<input id="region-search" type="search" placeholder="E.g. Sweden, France, Brazil, Norway"></label></div>
-          <div class="finder-controls"><input id="live-search" type="search" value="motorsport" placeholder="Any discipline, championship, team, or country"><button class="button button-primary" id="news-search" type="button">Search APEX</button><button class="button button-outline" id="youtube-search" type="button">YouTube Live ↗</button><button class="button button-outline" id="twitch-search" type="button">Twitch ↗</button><button class="button button-outline" id="web-search" type="button">Web ↗</button></div>
-          <small>“Search APEX” queries recent news and announcements via RSS. YouTube Live uses the official API when configured; without an API key, it opens public search. None of these searches alone confirms price, regional restrictions, or channel legitimacy.</small>
+          <div class="finder-controls"><input id="live-search" type="search" value="motorsport" placeholder="Any discipline, championship, team, or country"><button class="button button-primary" id="news-search" type="button">Search APEX</button><button class="button button-outline" id="youtube-search" type="button">Scan LIVE now ↗</button><button class="button button-outline" id="twitch-search" type="button">Twitch ↗</button><button class="button button-outline" id="web-search" type="button">Web ↗</button></div>
+          <small>“Scan LIVE now” uses YouTube’s official live-event filter when an API key is configured. Without a key, it opens YouTube’s public Live-filtered search, which APEX cannot independently verify. “Search APEX” finds current and historical broadcast leads in news feeds.</small>
           <div class="platform-results" id="platform-results"></div>
         </div>
-        <div class="discover-list" id="discover-list"><div class="empty-state"><strong>No discovery leads loaded.</strong><p>Run a scan to search for livestream announcements across karting, rally, endurance, and other disciplines.</p></div></div>
+        <div class="discover-list" id="discover-list"><div class="empty-state"><strong>No discovery leads loaded.</strong><p>Run a scan to search for live broadcast clues across karting, rally, endurance, and other disciplines. Historical clues are retained separately from Live Now results.</p></div></div>
       </section>
 
       <section class="tab-panel" id="panel-sources">
