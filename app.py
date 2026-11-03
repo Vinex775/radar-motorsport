@@ -1,4 +1,4 @@
-"""Servidor HTTP local sem framework ou dependências de interface externas."""
+"""Local HTTP server with no framework or external UI dependencies."""
 from __future__ import annotations
 
 import json
@@ -11,8 +11,8 @@ from urllib.parse import parse_qs, urlparse
 
 import db
 import radar
-from collectors.youtube import buscar_lives as buscar_lives_youtube
-from collectors.discovery import buscar_pistas_personalizadas
+from collectors.youtube import search_live_videos as search_live_videos_youtube
+from collectors.discovery import search_custom_discovery_leads
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -31,12 +31,12 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
     required = ["name", "series", "start", "platform", "access"]
     missing = [field for field in required if not str(data.get(field, "")).strip()]
     if missing:
-        return None, "Preencha os campos obrigatórios: " + ", ".join(missing)
+        return None, "Required fields: " + ", ".join(missing)
     if data["access"] not in ACCESS_VALUES:
-        return None, "Tipo de acesso inválido."
+        return None, "Invalid access type."
     for field in ("stream_url", "watch_url"):
         if not valid_http_url(data.get(field)):
-            return None, f"O campo {field} precisa ser um link http(s) válido."
+            return None, f"The {field} field must be a valid HTTP(S) URL."
     try:
         start = datetime.fromisoformat(data["start"].replace("Z", "+00:00"))
         if start.tzinfo is None:
@@ -49,9 +49,9 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
                 end = end.astimezone()
             end_utc = end.astimezone(timezone.utc).isoformat()
             if end_utc <= start_utc:
-                return None, "O fim precisa ser depois do início."
+                return None, "The end time must be after the start time."
     except (TypeError, ValueError):
-        return None, "Data/hora inválida."
+        return None, "Invalid date/time."
 
     name = str(data["name"]).strip()[:180]
     series = str(data["series"]).strip()[:100]
@@ -59,8 +59,8 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
         "external_id": f"manual:{name.lower()}:{start_utc}",
         "name": name,
         "series": series,
-        "category": str(data.get("category") or "Outros")[:100],
-        "kind": str(data.get("kind") or "Corrida")[:100],
+        "category": str(data.get("category") or "Other")[:100],
+        "kind": str(data.get("kind") or "Race")[:100],
         "start": start_utc,
         "end": end_utc,
         "platform": str(data["platform"]).strip()[:100],
@@ -69,16 +69,16 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
         "watch_url": data.get("watch_url"),
         "region": str(data.get("region") or "Global")[:100],
         "confidence": "user",
-        "source_name": "Cadastro manual",
+        "source_name": "Manual entry",
         "source_url": data.get("stream_url") or data.get("watch_url"),
     }, None
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.1.1"
+    server_version = "APEX-Motorsport-Radar/1.2.0"
 
     def log_message(self, format: str, *args) -> None:
-        # Mantém o terminal limpo, exceto erros HTTP.
+        # Keep the terminal quiet except for HTTP errors.
         if args and str(args[1]).startswith("4"):
             super().log_message(format, *args)
 
@@ -98,10 +98,10 @@ class RadarHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if length < 0 or length > 1_000_000:
-                raise ValueError("Tamanho de requisição inválido.")
+                raise ValueError("Invalid request size.")
             return json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ValueError("O corpo da requisição precisa ser JSON válido.") from exc
+            raise ValueError("Request body must be valid JSON.") from exc
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
@@ -109,29 +109,29 @@ class RadarHandler(BaseHTTPRequestHandler):
             try:
                 self._send(200, TEMPLATE.read_bytes(), "text/html; charset=utf-8")
             except OSError:
-                self._json(500, {"error": "Arquivo da interface não encontrado."})
+                self._json(500, {"error": "Dashboard template not found."})
         elif path.startswith("/static/"):
             name = path.removeprefix("/static/")
             if not re.fullmatch(r"[a-zA-Z0-9_.-]+", name):
-                self._json(400, {"error": "Caminho inválido."}); return
+                self._json(400, {"error": "Invalid path."}); return
             file_path = (STATIC / name).resolve()
             if file_path.parent != STATIC.resolve() or not file_path.is_file():
-                self._json(404, {"error": "Arquivo não encontrado."}); return
+                self._json(404, {"error": "File not found."}); return
             content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
             charset = "; charset=utf-8" if content_type.startswith(("text/", "application/javascript")) else ""
             self._send(200, file_path.read_bytes(), content_type + charset)
         elif path == "/api/dashboard":
             self._json(200, radar.dashboard_data())
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.1.1"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.2.0"})
         elif path == "/api/sources":
             self._json(200, {"sources": radar.load_watch_sources()})
         elif path == "/api/discover-search":
             query = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip()
             if len(query) < 2:
-                self._json(400, {"error": "Digite pelo menos 2 caracteres para pesquisar."}); return
+                self._json(400, {"error": "Enter at least 2 characters to search."}); return
             try:
-                items = buscar_pistas_personalizadas(query)
+                items = search_custom_discovery_leads(query)
                 db.save_discoveries(items)
                 self._json(200, {"query": query, "items": items, "count": len(items)})
             except ValueError as exc:
@@ -141,13 +141,13 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path == "/api/youtube-live":
             query = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip()
             if not query:
-                self._json(400, {"error": "Digite uma categoria, campeonato ou evento."}); return
+                self._json(400, {"error": "Enter a discipline, championship, or event."}); return
             try:
-                self._json(200, buscar_lives_youtube(query))
+                self._json(200, search_live_videos_youtube(query))
             except RuntimeError as exc:
                 self._json(502, {"configured": True, "error": str(exc)})
         else:
-            self._json(404, {"error": "Rota não encontrada."})
+            self._json(404, {"error": "Route not found."})
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
@@ -163,18 +163,18 @@ class RadarHandler(BaseHTTPRequestHandler):
             if error:
                 self._json(400, {"error": error}); return
             db.save_manual_event(event)
-            self._json(201, {"ok": True, "message": "Evento adicionado ao radar."})
+            self._json(201, {"ok": True, "message": "Event added to APEX."})
         else:
-            self._json(404, {"error": "Rota não encontrada."})
+            self._json(404, {"error": "Route not found."})
 
 
 def serve(host: str = "127.0.0.1", port: int = 5000) -> None:
     db.init_db()
     server = ThreadingHTTPServer((host, port), RadarHandler)
     try:
-        print(f"\n🏁 APEX — MOTORSPORT RADAR\nAbra http://{host}:{port} no navegador.\nPressione Ctrl+C para encerrar.\n")
+        print(f"\n🏁 APEX — MOTORSPORT RADAR\nOpen http://{host}:{port} in your browser.\nPress Ctrl+C to stop.\n")
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nEncerrando o Motorsport Radar...")
+        print("\nShutting down APEX Motorsport Radar...")
     finally:
         server.server_close()

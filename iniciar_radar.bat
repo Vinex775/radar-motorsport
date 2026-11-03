@@ -7,5 +7,5 @@ if %errorlevel%==0 (
     python main.py
 )
 echo.
-echo O APEX Motorsport Radar foi encerrado.
+echo APEX Motorsport Radar has stopped.
 pause

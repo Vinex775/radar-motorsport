@@ -1,4 +1,4 @@
-"""Ponto de entrada: execute `python main.py` para abrir o painel web."""
+"""Entry point: run `python main.py` to start the web dashboard."""
 from app import serve
 
 if __name__ == "__main__":

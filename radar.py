@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from collectors.calendario_dtm import buscar_eventos as buscar_eventos_dtm
-from collectors.discovery import buscar_pistas
+from collectors.calendario_dtm import fetch_dtm_events as fetch_dtm_events_dtm
+from collectors.discovery import discover_broadcast_leads
 import db
 
 ROOT = Path(__file__).resolve().parent
@@ -31,20 +31,20 @@ def load_search_presets() -> list[dict[str, Any]]:
 
 def _run_dtm() -> tuple[list[dict], str | None]:
     try:
-        return buscar_eventos_dtm(), None
-    except Exception as exc:  # cada coletor é isolado para não derrubar o radar
+        return fetch_dtm_events_dtm(), None
+    except Exception as exc:  # each collector is isolated so it cannot take down the radar
         return [], f"DTM: {type(exc).__name__}: {exc}"
 
 
 def _run_discovery() -> tuple[list[dict], str | None]:
     try:
-        return buscar_pistas(), None
+        return discover_broadcast_leads(), None
     except Exception as exc:
-        return [], f"Busca de notícias: {type(exc).__name__}: {exc}"
+        return [], f"News discovery: {type(exc).__name__}: {exc}"
 
 
 def refresh_all() -> dict[str, Any]:
-    """Atualiza os coletores em paralelo e conserva os dados já salvos em falhas."""
+    """Refresh collectors in parallel and preserve stored data when a source fails."""
     errors: list[str] = []
     event_count = 0
     discovery_count = 0

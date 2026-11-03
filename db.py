@@ -25,11 +25,11 @@ def init_db() -> None:
             external_id TEXT NOT NULL,
             name TEXT NOT NULL,
             series TEXT NOT NULL DEFAULT 'Motorsport',
-            category TEXT NOT NULL DEFAULT 'Outros',
-            kind TEXT NOT NULL DEFAULT 'Evento',
+            category TEXT NOT NULL DEFAULT 'Other',
+            kind TEXT NOT NULL DEFAULT 'Event',
             start_utc TEXT,
             end_utc TEXT,
-            platform TEXT NOT NULL DEFAULT 'Não identificada',
+            platform TEXT NOT NULL DEFAULT 'Unidentified',
             access TEXT NOT NULL DEFAULT 'unknown',
             stream_url TEXT,
             watch_url TEXT,
@@ -77,8 +77,8 @@ def upsert_event(event: dict[str, Any], source: str) -> None:
             source_name=excluded.source_name, source_url=excluded.source_url, updated_at=CURRENT_TIMESTAMP
         """, (
             source, event.get("external_id"), event.get("name"), event.get("series", "Motorsport"),
-            event.get("category", "Outros"), event.get("kind", "Evento"), event.get("start"),
-            event.get("end"), event.get("platform", "Não identificada"), event.get("access", "unknown"),
+            event.get("category", "Other"), event.get("kind", "Event"), event.get("start"),
+            event.get("end"), event.get("platform", "Unidentified"), event.get("access", "unknown"),
             event.get("stream_url"), event.get("watch_url"), event.get("region", "Global"),
             event.get("confidence", "unknown"), event.get("source_name"), event.get("source_url"),
         ))
@@ -107,14 +107,14 @@ def get_events() -> list[dict[str, Any]]:
 
 
 def purge_irrelevant_discoveries() -> int:
-    """Remove do SQLite pistas antigas que não passam no filtro de motorsport."""
-    from collectors.discovery import is_motorsport_result
+    """Remove stored leads that fail motorsport, reaction, or staleness checks."""
+    from collectors.discovery import is_valid_discovery
 
     with connect() as conn:
-        rows = conn.execute("SELECT id, title, summary FROM discoveries").fetchall()
+        rows = conn.execute("SELECT id, title, summary, published_utc FROM discoveries").fetchall()
         invalid_ids = [
             row["id"] for row in rows
-            if not is_motorsport_result(row["title"], row["summary"] or "")
+            if not is_valid_discovery(row["title"], row["summary"] or "", row["published_utc"])
         ]
         if invalid_ids:
             conn.executemany("DELETE FROM discoveries WHERE id = ?", [(item_id,) for item_id in invalid_ids])

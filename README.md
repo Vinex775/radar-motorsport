@@ -1,181 +1,139 @@
-# APEX — Motorsport Radar
+# APEX Motorsport Radar
 
-## Atualização 1.1.1
+**An open-source discovery radar for motorsport events and places to watch them — from local karting and club racing to Formula 1, endurance, rally, drifting, drag racing, and motorcycle racing.**
 
-- Corrigido falso positivo de notícias políticas/comícios que apareciam como "Rally".
-- Consultas ao Google News agora excluem termos políticos e os resultados passam por validação local de contexto de motorsport.
-- Resultados antigos irrelevantes já salvos no SQLite são removidos automaticamente ao carregar o painel.
-- Adicionados testes de regressão para manchetes eleitorais e notícias legítimas de rally automobilístico.
+APEX is a discovery aggregator. It points users to calendars, news, channels, and official watch pages. It does not host or rebroadcast video, bypass paywalls, or circumvent regional restrictions.
 
-**Radar open-source para descobrir corridas e transmissões de motorsport no mundo todo.** Do kart regional e campeonatos de clubes até Fórmula 1, endurance, rally, drift, arrancada e corridas de motos.
+> **Important:** A search result is a lead, not proof of a live broadcast. A race schedule window is not proof that a video player is live. APEX distinguishes official race feeds from reaction/commentary streams and filters stale “watch live” articles when there is enough evidence to do so.
 
-O APEX é um agregador de descoberta: ele aponta calendários, notícias, canais e páginas oficiais. **Não hospeda vídeos, não retransmite corridas e não contorna paywalls ou bloqueios territoriais.**
+## Features
 
-## O que há nesta versão
+- DTM schedule collector, isolated so a source failure does not stop the rest of the radar.
+- Broad discovery searches across formula racing, karting, rally and rally raid, GT/endurance, touring cars, stock cars, motorcycles, motocross, drag racing, drifting, hillclimb, speedway, oval racing, and regional series.
+- Custom search for any championship, country, circuit, or obscure series using Google News RSS, with regional editions selected where possible.
+- Search shortcuts for 25+ motorsport families and regions.
+- Optional YouTube Data API integration for videos YouTube currently marks as live.
+- Official watch-source directory.
+- Access labels: **Free**, **Subscription**, **Pay-per-view**, and **Unknown**.
+- Manual event entry for series without a collector.
+- Browser notifications for upcoming events while the dashboard remains open.
+- Local SQLite storage; no account or external database required.
+- MIT-licensed code and GitHub Actions tests.
 
-- Painel web local em português, com filtros de eventos e tipo de acesso.
-- Calendário DTM via coletor isolado. Uma falha nessa fonte não derruba o restante do radar.
-- Varredura ampla por famílias de modalidades: fórmulas, karting, rally/rally raid, GT/endurance, turismo/stock cars, motociclismo, motocross, drag, drift, hillclimb, speedway, ovais e corridas regionais.
-- **Busca personalizada no próprio painel:** digite qualquer categoria, campeonato, país, pista ou série obscura; o radar procura notícias e anúncios recentes via Google News RSS e seleciona edições regionais conforme o país/idioma identificado na busca.
-- Atalhos para 25 tipos de busca, incluindo karting da Suécia, FIA Karting, campeonatos de clubes e eventos nacionais.
-- Busca de lives do YouTube pela API oficial quando `YOUTUBE_API_KEY` está configurada; sem chave, o painel abre a busca pública do YouTube.
-- Atalhos de busca no Twitch e na web.
-- Diretório de fontes e páginas oficiais de transmissão para várias modalidades.
-- Classificação de acesso em **Grátis**, **Assinatura**, **Pay-per-view** e **Não confirmado**.
-- Cadastro manual de corridas e transmissões que ainda não tenham coletor.
-- Alertas do navegador para sessões cadastradas que começam nos próximos 15 minutos (com a página aberta e permissão concedida).
-- Banco SQLite local para guardar eventos, pistas e horário da última varredura.
+## Requirements
 
-## Requisitos
+- Python 3.10 or newer
+- Internet access for online discovery
+- No required third-party Python packages
 
-- Python 3.10 ou superior.
-- Conexão com a internet para consultar fontes e notícias.
-- Nenhuma biblioteca externa obrigatória.
+## Run locally
 
-## Rodar no Windows
+### Windows
 
-1. Baixe ou extraia o projeto.
-2. Entre na pasta `radar-motorsport-complete`.
-3. Dê dois cliques em `iniciar_radar.bat`, ou abra o PowerShell nessa pasta e execute:
+1. Extract the repository.
+2. Double-click `iniciar_radar.bat`, or run the commands below in PowerShell from the project directory.
 
-   ```powershell
-   py main.py
-   ```
+```powershell
+py main.py
+```
 
-4. Abra <http://127.0.0.1:5000> no navegador.
-5. Para encerrar, volte ao terminal e pressione `Ctrl + C`.
+If `py` is unavailable, use `python main.py`.
 
-Se o comando `py` não existir, tente `python main.py`.
+Open <http://127.0.0.1:5000> in your browser. Press `Ctrl+C` in the terminal to stop the server.
 
-## Rodar no macOS / Linux
+### macOS / Linux
 
 ```bash
 python3 main.py
 ```
 
-Depois abra <http://127.0.0.1:5000>.
+Then open <http://127.0.0.1:5000>.
 
-## Usar a busca global
+## Discover broadcasts
 
-1. Abra a aba **Descobrir transmissões**.
-2. Escolha um atalho de modalidade ou digite um termo livre.
-3. Acrescente país/região para afunilar a busca, por exemplo `Sweden`, `Sverige`, `Brasil`, `Norway` ou `Finland`.
-4. Clique em **Buscar no radar** para consultar notícias e anúncios recentes.
-5. Use os atalhos YouTube, Twitch e Web para procurar diretamente nas plataformas.
+1. Open **Discover**.
+2. Enter a category, championship, circuit, country, or regional series — for example `Swedish club karting`, `Finnish rallycross`, or `Brazil hillclimb`.
+3. Optionally add a region to narrow the search.
+4. Select **Search APEX** to find recent news and announcements.
+5. Open the original source and confirm the event date, session, platform, territory, and access conditions.
 
-Exemplos de pesquisas livres:
+APEX searches in multiple languages, but no search engine indexes every local club, federation, or broadcast. Some events will be missed; some results will require manual verification.
 
-- `Swedish karting series C`
-- `Norwegian club rally livestream`
-- `Brazil hillclimb championship`
-- `Italian regional Formula 4 live`
-- `Finnish ice speedway live stream`
-- `South African dirt oval racing`
+## YouTube Live API (optional)
 
-A busca por notícias é uma ferramenta de descoberta. Uma notícia pode estar desatualizada, tratar de uma etapa passada ou não corresponder a uma transmissão ao vivo naquele instante. Sempre abra a fonte original para conferir data e evento.
+To list videos that YouTube currently marks as live, create an API key in the [Google Cloud Console](https://console.cloud.google.com/) and enable the YouTube Data API v3. Set the `YOUTUBE_API_KEY` environment variable before starting APEX.
 
-## Busca de lives do YouTube (opcional)
+PowerShell example:
 
-Para listar no painel os vídeos que o YouTube Data API identifica como transmissões ativas:
+```powershell
+$env:YOUTUBE_API_KEY = "YOUR_API_KEY"
+py main.py
+```
 
-1. Crie uma chave no Google Cloud.
-2. Habilite **YouTube Data API v3**.
-3. Antes de iniciar o projeto, no PowerShell execute:
+The key is read from the environment and is not stored in source code or SQLite. **Never commit API keys, tokens, cookies, or `.env` files.** Without a key, the YouTube button opens public YouTube search instead.
 
-   ```powershell
-   $env:YOUTUBE_API_KEY = "SUA_CHAVE_AQUI"
-   py main.py
-   ```
+YouTube's `eventType=live` is evidence that YouTube classifies a video as live; it does not prove that the channel is official, that the video contains the race feed rather than reaction/commentary, or that access is unrestricted in every country.
 
-A chave fica em uma variável de ambiente e não é gravada no código ou no banco local. **Nunca publique sua chave no GitHub.** Sem a chave, o botão continua abrindo a busca pública do YouTube.
+## How access labels work
 
-A API pode confirmar que o YouTube classifica o vídeo como live, mas não confirma necessariamente que ele esteja livre de restrição regional, que seja oficial ou que não exija acesso especial. Por isso o painel mantém o preço como **não confirmado**.
+- **Free:** a source explicitly states that the relevant event or feed is free.
+- **Subscription:** a source explicitly states that a subscription or paid pass is required.
+- **Pay-per-view:** a source explicitly states that the individual event must be purchased.
+- **Unknown:** price, region, session, or access conditions are unclear.
 
-Referência: <https://developers.google.com/youtube/v3/docs/search/list>
+Access is specific to the **series + platform + region + season + session**. A feed can be free in one country and paid in another. APEX must not infer that a broadcast is free merely because it is on YouTube or because an article uses the word “free” in another context.
 
-## Como o acesso é classificado
+## Discovery quality and false positives
 
-- **Grátis:** uma fonte identificada declara explicitamente acesso gratuito para aquela modalidade, evento ou região.
-- **Assinatura:** a fonte descreve assinatura ou passe pago.
-- **Pay-per-view:** existe indicação explícita de compra individual da corrida/evento.
-- **Não confirmado:** preço, país, sessão ou condição de acesso não está claro.
+Search engines may confuse motorsport “rally” with political rallies, surface reaction streams as if they were race feeds, or return articles about events that have already ended. APEX uses exclusion terms and motorsport-context checks, flags reaction/commentary and stale watch-guide results, and keeps news discoveries separate from verified live streams. These filters reduce false positives but cannot eliminate them all.
 
-A classificação pertence à combinação de **campeonato + plataforma + região + temporada**, e não à modalidade inteira. Um campeonato pode ser gratuito no YouTube em um país e pago em outro. O catálogo procura explicar essas condições no campo de observação.
+Please report false positives with the source URL, result title, and why it is misleading. Do not report a result as verified merely because its title says “LIVE.”
 
-## Onde os dados vêm
+## Project layout
 
-- `collectors/calendario_dtm.py`: calendário estruturado DTM.
-- `collectors/discovery.py`: varredura ampla e busca RSS personalizada.
-- `collectors/youtube.py`: consulta opcional à API oficial do YouTube.
-- `data/watch_sources.json`: diretório de links e guias oficiais de transmissão.
-- `data/search_presets.json`: atalhos de pesquisa por modalidade.
-- `radar.py`: coordena coletores e prepara o painel.
-- `db.py`: persistência SQLite.
-- `app.py`: servidor HTTP local e API.
+- `main.py`: local application entry point
+- `app.py`: HTTP server and API routes
+- `radar.py`: collector orchestration and dashboard data
+- `db.py`: local SQLite persistence
+- `collectors/`: schedule, news discovery, and YouTube collectors
+- `data/search_presets.json`: discovery shortcuts
+- `data/watch_sources.json`: official watch-source directory
+- `templates/index.html`: dashboard markup
+- `static/app.css`: styles
+- `static/app.js`: dashboard behavior
+- `tests/`: unit tests
 
-### Adicionar um campeonato ao catálogo
+## Contribute a source or collector
 
-Para cadastrar uma nova página oficial de transmissão, acrescente um objeto em `data/watch_sources.json` com:
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Official championship, federation, circuit, and broadcaster pages are preferred. Include the source URL, region, season, date checked, and evidence for any access claim. Use `unknown` when price or territorial rights cannot be verified.
 
-- `id` único;
-- `series`, `region`, `platform` e `access` (`free`, `subscription`, `ppv` ou `unknown`);
-- `url` para a plataforma ou página de transmissão;
-- `official_info` para a referência que sustenta a informação;
-- `note` explicando restrições importantes;
-- `confidence` e `last_checked`.
+Do not invent session times. If a source publishes only an event date, keep the time unknown. New collectors should fail independently and include tests for parsing and date handling.
 
-Use `unknown` quando não conseguir confirmar preço ou território. Não transforme um link de busca em uma fonte oficial.
+Run tests with:
 
-Para acrescentar um atalho, edite `data/search_presets.json`. O campo `query` é o texto que será preenchido na busca personalizada.
+```bash
+python -m unittest discover -s tests -v
+```
 
-Para adicionar um calendário automático, crie um coletor separado em `collectors/` e registre sua execução em `radar.refresh_all()`. O coletor deve normalizar eventos e falhar de forma isolada. Não invente horários quando a fonte publicar apenas a data da etapa.
+## Security and privacy
 
-## Privacidade e segurança
+APEX is intended for local use at `127.0.0.1`. It has no multi-user authentication, authorization, CSRF protection, HTTPS, or rate limiting. Do not expose the development server directly to the public internet without adding appropriate security controls.
 
-- O servidor escuta em `127.0.0.1` por padrão e foi pensado para uso local.
-- O banco `data/radar.sqlite3` é local e está ignorado pelo Git.
-- `.env`, chaves e arquivos de configuração locais estão ignorados pelo Git.
-- Não há autenticação multiusuário nem proteção para exposição pública na internet. Não publique a instância local diretamente em um servidor público sem implementar autenticação, controle de acesso, HTTPS e limites de requisição.
-- Não adicione chaves de API, tokens, cookies ou dados pessoais ao repositório.
+Do not commit API keys, tokens, cookies, personal data, or local database files. See [SECURITY.md](SECURITY.md).
 
-## Limitações conhecidas
+## Current limitations
 
-- Não existe uma API pública única com todos os eventos, calendários e direitos de transmissão do planeta.
-- O calendário estruturado automático desta versão é DTM. Outros campeonatos aparecem por busca de notícias, diretório oficial, YouTube ou cadastro manual.
-- O Google News RSS encontra notícias e anúncios; não verifica o estado do player nem confirma que a corrida está ao vivo.
-- Sem `YOUTUBE_API_KEY`, o YouTube abre uma busca pública em vez de devolver resultados estruturados dentro do painel.
-- “Janela em andamento” é calculada pelo horário publicado da sessão; não é confirmação de vídeo ao vivo.
-- Os direitos de transmissão mudam por país, temporada, evento e sessão. Os links oficiais podem mudar sem aviso.
-- O coletor DTM usa uma API pública não documentada e pode precisar de manutenção se o fornecedor alterar o formato.
-- Os alertas funcionam com o painel aberto; notificações push com o navegador fechado exigiriam infraestrutura adicional.
+- There is no single public API containing every motorsport event and worldwide broadcast right.
+- DTM is the only structured automatic schedule collector in this release. Other series are discovered through news, YouTube, official directories, or manual entry.
+- Google News RSS discovers articles and announcements; it does not inspect a video player or guarantee a current live feed.
+- “Live window” means only that the published session time overlaps the current time.
+- Broadcast rights change by country, season, event, and session. Official links can change without notice.
+- The DTM collector uses an undocumented public endpoint and may need maintenance if the provider changes it.
 
-## Aviso sobre marcas, conteúdo e direitos
+## Disclaimer
 
-APEX é um projeto comunitário independente e não é afiliado, patrocinado ou endossado pela FIA, FIM, Formula 1, Dorna, NASCAR, IMSA, SRO, NHRA ou qualquer campeonato/plataforma listado. Marcas, nomes e links pertencem aos respectivos titulares. O projeto direciona o usuário a fontes externas e não copia nem distribui transmissões.
+APEX is an independent community project and is not affiliated with, sponsored by, or endorsed by the FIA, FIM, Formula 1, Dorna, NASCAR, IMSA, SRO, NHRA, or any listed championship or platform. Trademarks, broadcasts, videos, calendars, and third-party content remain the property of their respective owners. APEX links users to external sources and does not copy or distribute broadcasts.
 
-## Contribuir
+## License
 
-Leia `CONTRIBUTING.md` antes de enviar alterações. Sugestões de novos campeonatos são bem-vindas — especialmente karting local, categorias de base, corridas regionais e séries pouco conhecidas.
-
-## Licença
-
-O código deste projeto está disponível sob a licença MIT. Consulte o arquivo `LICENSE`. Isso não concede direitos sobre marcas, transmissões, vídeos, calendários ou conteúdos de terceiros.
-
-## Fontes oficiais mapeadas
-
-- [FIA Karting — canal oficial](https://www.youtube.com/@fiakartingchampionship9818) · [Calendário 2026](https://www.fiakarting.com/competition-list?year=2026)
-- [FIA WEC — onde assistir](https://www.fiawec.com/en/page/ou-regarder-1) · [FIAWEC+](https://plus.fiawec.com/)
-- [IMSA TV](https://www.imsa.com/tvlive/) · [cobertura internacional](https://www.imsa.com/internationalcoverage/)
-- [DTM — TV / live](https://www.dtm.com/live/live-on-tv)
-- [WRC — broadcast guide](https://www.wrc.com/en/misc/broadcast-guide) · [Rally.TV](https://www.rally.tv/en/getting-started)
-- [Formula E — ways to watch](https://www.fiaformulae.com/en/ways-to-watch)
-- [WorldSBK — onde assistir em 2026](https://www.worldsbk.com/en/news/2026/02/19/where-to-watch-worldsbk-throughout-the-2026-seasonx/989565)
-- [GT World / SRO America — guia 2026](https://www.gt-world-challenge-america.com/news/1354/how-to-tune-in-to-sro-america-in-2026)
-- [NHRA.tv](https://www.nhra.tv/) · [plano gratuito e pago NHRA 2026](https://www.nhra.com/news/2026/nhra-releases-free-2026-streaming-schedule-nhratv-nhra-youtube-page)
-- [SuperMotocross Video Pass](https://smxpass.com/247-live/) · [FAQ oficial Supercross](https://www.supercrosslive.com/faq/)
-- [NASCAR — guia internacional](https://www.nascar.com/international/how-to-watch)
-- [IndyCar — broadcasters internacionais 2026](https://www.indycar.com/how-to-follow/international/)
-- [Supercars — guia de transmissão](https://www.supercars.com/how-to-watch)
-- [FIM Speedway — onde assistir em 2026](https://fimspeedway.com/news/fim-speedway-where-to-watch-2026)
-- [HillClimb.TV](https://hillclimb.tv/)
-- [MotoGP VideoPass](https://www.motogp.com/en/videopass)
+The source code is available under the MIT License. See [LICENSE](LICENSE). This does not grant rights to third-party trademarks, broadcasts, videos, calendars, or content.
