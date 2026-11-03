@@ -1,28 +1,158 @@
 [
-  {"id":"karting","label":"Karting — campeonatos e clubes","category":"Karting","query":"karting championship club series live stream livestream"},
-  {"id":"karting-sweden","label":"Karting — Suécia / Escandinávia","category":"Karting","query":"Swedish karting series championship club race livestream"},
-  {"id":"karting-world","label":"Karting — FIA / Mundial / Europeu","category":"Karting","query":"FIA Karting World European Championship live stream"},
-  {"id":"formula-ladder","label":"Fórmulas — F2 / F3 / F4 / Regional","category":"Fórmulas de base","query":"Formula 2 Formula 3 Formula 4 Formula Regional live stream"},
-  {"id":"formula1","label":"Fórmula 1","category":"Fórmula 1","query":"Formula 1 Grand Prix live stream broadcast"},
-  {"id":"formulae","label":"Fórmula E","category":"Fórmula E","query":"Formula E live stream watch live"},
-  {"id":"gt","label":"GT3 / GT4 / GT World Challenge","category":"GT / GT3 / GT4","query":"GT3 GT4 GT World Challenge racing live stream"},
-  {"id":"endurance","label":"Endurance — WEC / IMSA / ELMS / 24h","category":"Endurance / Protótipos","query":"endurance racing WEC IMSA ELMS 24 hour race live stream"},
-  {"id":"touring","label":"Turismo — TCR / DTM / BTCC","category":"Turismo / TCR","query":"touring car TCR DTM BTCC championship live stream"},
-  {"id":"stock-nascar","label":"Stock Car / NASCAR / Supercars","category":"Stock Car / NASCAR","query":"stock car NASCAR Supercars championship live stream"},
-  {"id":"rally","label":"Rally — WRC / ERC / nacional","category":"Rally","query":"rally WRC ERC national rally championship live stream"},
-  {"id":"rally-raid","label":"Rally Raid — Dakar / Baja","category":"Rally Raid / Baja","query":"rally raid Dakar Baja off road live stream"},
-  {"id":"rallycross","label":"Rallycross / Autocross","category":"Rallycross","query":"rallycross autocross championship live stream"},
-  {"id":"drift","label":"Drift — campeonatos locais e mundiais","category":"Drift","query":"drift championship Formula Drift Drift Masters live stream"},
-  {"id":"hillclimb","label":"Hillclimb / Subida de montanha","category":"Hillclimb / Subida de montanha","query":"hillclimb hill climb Bergrennen championship live stream"},
-  {"id":"drag","label":"Arrancada / Drag Racing","category":"Arrancada / Drag","query":"drag racing dragster NHRA national regional event live stream"},
-  {"id":"motogp","label":"MotoGP / Moto2 / Moto3","category":"MotoGP / Moto2 / Moto3","query":"MotoGP Moto2 Moto3 motorcycle racing live stream"},
-  {"id":"superbike","label":"Superbike — WorldSBK e nacionais","category":"WorldSBK","query":"WorldSBK superbike national motorcycle race live stream"},
-  {"id":"motocross","label":"Motocross / Supercross / MXGP","category":"Motocross / Supercross","query":"motocross supercross MXGP championship live stream"},
-  {"id":"enduro","label":"Enduro / Hard Enduro / Trials","category":"Enduro / Hard Enduro","query":"enduro hard enduro trials motorcycle championship live stream"},
-  {"id":"speedway","label":"Speedway / Ice Speedway","category":"Speedway","query":"speedway grand prix ice speedway league live stream"},
-  {"id":"oval","label":"Ovais — Sprint Cars / Midgets / Dirt","category":"Ovais / Sprint Cars / Midgets","query":"sprint car midget dirt late model oval racing live stream"},
-  {"id":"club","label":"Club racing / categorias regionais","category":"Club / Regional","query":"club racing grassroots amateur regional motorsport live stream"},
-  {"id":"time-attack","label":"Time Attack / Track Day competitivo","category":"Time Attack","query":"time attack motorsport championship live stream"},
-  {"id":"brazil","label":"Brasil — automobilismo regional","category":"Club / Regional","query":"Brasil campeonato estadual automobilismo corrida ao vivo transmissão"},
-  {"id":"europe","label":"Europa — campeonatos nacionais","category":"Club / Regional","query":"European national regional motorsport championship livestream"}
+  {
+    "id": "karting",
+    "label": "Karting — championships and clubs",
+    "category": "Karting",
+    "query": "karting championship club series live stream livestream"
+  },
+  {
+    "id": "karting-sweden",
+    "label": "Karting — Sweden / Scandinavia",
+    "category": "Karting",
+    "query": "Swedish karting series championship club race livestream"
+  },
+  {
+    "id": "karting-world",
+    "label": "Karting — FIA / World / European",
+    "category": "Karting",
+    "query": "FIA Karting World European Championship live stream"
+  },
+  {
+    "id": "formula-ladder",
+    "label": "Formula racing — F2 / F3 / F4 / Regional",
+    "category": "Junior formulas",
+    "query": "Formula 2 Formula 3 Formula 4 Formula Regional live stream"
+  },
+  {
+    "id": "formula1",
+    "label": "Formula 1",
+    "category": "Formula 1",
+    "query": "Formula 1 Grand Prix live stream broadcast"
+  },
+  {
+    "id": "formulae",
+    "label": "Formula E",
+    "category": "Formula E",
+    "query": "Formula E live stream watch live"
+  },
+  {
+    "id": "gt",
+    "label": "GT3 / GT4 / GT World Challenge",
+    "category": "GT / GT3 / GT4",
+    "query": "GT3 GT4 GT World Challenge racing live stream"
+  },
+  {
+    "id": "endurance",
+    "label": "Endurance — WEC / IMSA / ELMS / 24h",
+    "category": "Endurance / Prototypes",
+    "query": "endurance racing WEC IMSA ELMS 24 hour race live stream"
+  },
+  {
+    "id": "touring",
+    "label": "Touring cars — TCR / DTM / BTCC",
+    "category": "Touring Cars / TCR",
+    "query": "touring car TCR DTM BTCC championship live stream"
+  },
+  {
+    "id": "stock-nascar",
+    "label": "Stock cars / NASCAR / Supercars",
+    "category": "Stock Car / NASCAR",
+    "query": "stock car NASCAR Supercars championship live stream"
+  },
+  {
+    "id": "rally",
+    "label": "Rally — WRC / ERC / national",
+    "category": "Rally",
+    "query": "rally WRC ERC national rally championship live stream"
+  },
+  {
+    "id": "rally-raid",
+    "label": "Rally Raid — Dakar / Baja",
+    "category": "Rally Raid / Baja",
+    "query": "rally raid Dakar Baja off road live stream"
+  },
+  {
+    "id": "rallycross",
+    "label": "Rallycross / Autocross",
+    "category": "Rallycross",
+    "query": "rallycross autocross championship live stream"
+  },
+  {
+    "id": "drift",
+    "label": "Drifting — local and world championships",
+    "category": "Drift",
+    "query": "drift championship Formula Drift Drift Masters live stream"
+  },
+  {
+    "id": "hillclimb",
+    "label": "Hillclimb",
+    "category": "Hillclimb",
+    "query": "hillclimb hill climb Bergrennen championship live stream"
+  },
+  {
+    "id": "drag",
+    "label": "Drag racing",
+    "category": "Drag racing",
+    "query": "drag racing dragster NHRA national regional event live stream"
+  },
+  {
+    "id": "motogp",
+    "label": "MotoGP / Moto2 / Moto3",
+    "category": "MotoGP / Moto2 / Moto3",
+    "query": "MotoGP Moto2 Moto3 motorcycle racing live stream"
+  },
+  {
+    "id": "superbike",
+    "label": "Superbike — WorldSBK and national series",
+    "category": "WorldSBK",
+    "query": "WorldSBK superbike national motorcycle race live stream"
+  },
+  {
+    "id": "motocross",
+    "label": "Motocross / Supercross / MXGP",
+    "category": "Motocross / Supercross",
+    "query": "motocross supercross MXGP championship live stream"
+  },
+  {
+    "id": "enduro",
+    "label": "Enduro / Hard Enduro / Trials",
+    "category": "Enduro / Hard Enduro",
+    "query": "enduro hard enduro trials motorcycle championship live stream"
+  },
+  {
+    "id": "speedway",
+    "label": "Speedway / Ice Speedway",
+    "category": "Speedway",
+    "query": "speedway grand prix ice speedway league live stream"
+  },
+  {
+    "id": "oval",
+    "label": "Ovals — Sprint Cars / Midgets / Dirt",
+    "category": "Oval / Sprint Cars / Midgets",
+    "query": "sprint car midget dirt late model oval racing live stream"
+  },
+  {
+    "id": "club",
+    "label": "Club racing / regional categories",
+    "category": "Club / Regional",
+    "query": "club racing grassroots amateur regional motorsport live stream"
+  },
+  {
+    "id": "time-attack",
+    "label": "Time Attack / Track Day competitivo",
+    "category": "Time Attack",
+    "query": "time attack motorsport championship live stream"
+  },
+  {
+    "id": "brazil",
+    "label": "Brazil — regional motorsport",
+    "category": "Club / Regional",
+    "query": "Brasil campeonato estadual automobilismo corrida ao vivo transmissão"
+  },
+  {
+    "id": "europe",
+    "label": "Europe — national championships",
+    "category": "Club / Regional",
+    "query": "European national regional motorsport championship livestream"
+  }
 ]
