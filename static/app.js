@@ -1,30 +1,30 @@
 const state = { events: [], discoveries: [], sources: [], searchPresets: [], notificationPermission: false };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value='') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
-const accessText = {free:'Grátis', subscription:'Assinatura', ppv:'Pay-per-view', unknown:'Não confirmado'};
-const statusText = {live:'Janela em andamento', upcoming:'Próximo', unknown:'Horário não confirmado'};
+const accessText = {free:'Free', subscription:'Subscription', ppv:'Pay-per-view', unknown:'Unknown'};
+const statusText = {live:'Scheduled window active', upcoming:'Upcoming', unknown:'Time unknown'};
 
 function safeUrl(value) {
   try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
   catch { return ''; }
 }
 function formatDate(value) {
-  if (!value) return 'Horário não informado';
+  if (!value) return 'Time not provided';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Horário não informado';
-  return new Intl.DateTimeFormat('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }).format(date).replace(',', ' ·');
+  if (Number.isNaN(date.getTime())) return 'Time not provided';
+  return new Intl.DateTimeFormat('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZoneName:'short' }).format(date).replace(',', ' ·');
 }
 function formatLastRefresh(value) {
-  if (!value) return 'Ainda não executada';
+  if (!value) return 'Not run yet';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? 'Não disponível' : new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).format(d);
+  return Number.isNaN(d.getTime()) ? 'Unavailable' : new Intl.DateTimeFormat('en-GB', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).format(d);
 }
 function showToast(message, error=false) {
   const toast = $('#toast'); toast.textContent = message; toast.classList.toggle('error', error); toast.classList.add('show');
   window.clearTimeout(showToast.timer); showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 3600);
 }
 function setLoading(loading) {
-  const button = $('#refresh-button'); button.disabled = loading; button.innerHTML = loading ? '<span class="refresh-icon">↻</span> Buscando...' : '<span class="refresh-icon">↻</span> Atualizar radar';
+  const button = $('#refresh-button'); button.disabled = loading; button.innerHTML = loading ? '<span class="refresh-icon">↻</span> Searching...' : '<span class="refresh-icon">↻</span> Refresh radar';
 }
 function renderStats(data) {
   $('#stat-live').textContent = data.stats?.live ?? 0;
@@ -35,16 +35,16 @@ function renderStats(data) {
   $('#discover-count').textContent = data.discoveries.length;
 }
 function renderEvents() {
-  const query = $('#event-search').value.trim().toLocaleLowerCase('pt-BR');
+  const query = $('#event-search').value.trim().toLocaleLowerCase('en-US');
   const statusFilter = $('#status-filter').value;
   const accessFilter = $('#access-filter').value;
   const filtered = state.events.filter(event => {
-    const text = `${event.name} ${event.series} ${event.category} ${event.region} ${event.platform}`.toLocaleLowerCase('pt-BR');
+    const text = `${event.name} ${event.series} ${event.category} ${event.region} ${event.platform}`.toLocaleLowerCase('en-US');
     return (!query || text.includes(query)) && (statusFilter === 'all' || event.status === statusFilter) && (accessFilter === 'all' || event.access === accessFilter);
   });
   const grid = $('#event-grid');
   if (!filtered.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⌁</div><strong>${state.events.length ? 'Nenhum evento corresponde aos filtros.' : 'Nenhum evento no radar ainda.'}</strong><p>${state.events.length ? 'Tente retirar um filtro ou buscar outro termo.' : 'Atualize os coletores ou cadastre uma transmissão manualmente.'}</p></div>`;
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⌁</div><strong>${state.events.length ? 'No events match these filters.' : 'No events in APEX yet.'}</strong><p>${state.events.length ? 'Try removing a filter or searching for another term.' : 'Refresh the collectors or add an event manually.'}</p></div>`;
     return;
   }
   grid.innerHTML = filtered.map(event => {
@@ -54,21 +54,21 @@ function renderEvents() {
     const secondaryUrl = safeUrl(event.source_url);
     return `<article class="event-card ${event.status === 'live' ? 'is-live' : ''}">
       <div class="card-top"><span class="status-tag ${escapeHtml(event.status)}">${escapeHtml(status)}</span><span class="series-tag">${escapeHtml(event.series || 'Motorsport')}</span></div>
-      <h3>${escapeHtml(event.name)}</h3><div class="event-kind">${escapeHtml(event.kind || event.category || 'Evento')}</div>
-      <div class="event-meta"><div class="meta-cell"><small>Horário de Brasília</small><strong>${escapeHtml(formatDate(event.start_utc))}</strong></div><div class="meta-cell"><small>Região</small><strong>${escapeHtml(event.region || 'Global')}</strong></div></div>
-      <div class="access-row"><span class="access-tag ${escapeHtml(event.access || 'unknown')}">${escapeHtml(access)}</span><span class="platform-text">${escapeHtml(event.platform || 'Plataforma não identificada')}</span></div>
-      <div class="card-actions">${actionUrl ? `<a class="primary-link" href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer">${event.stream_url ? 'Abrir transmissão ↗' : 'Onde assistir ↗'}</a>` : '<a class="primary-link" href="https://www.google.com/search?q='+encodeURIComponent(`${event.series} ${event.name} live stream`)+'" target="_blank" rel="noopener noreferrer">Procurar transmissão ↗</a>'}${secondaryUrl && secondaryUrl !== actionUrl ? `<a href="${escapeHtml(secondaryUrl)}" target="_blank" rel="noopener noreferrer">Fonte ↗</a>` : ''}</div>
+      <h3>${escapeHtml(event.name)}</h3><div class="event-kind">${escapeHtml(event.kind || event.category || 'Event')}</div>
+      <div class="event-meta"><div class="meta-cell"><small>Local time</small><strong>${escapeHtml(formatDate(event.start_utc))}</strong></div><div class="meta-cell"><small>Region</small><strong>${escapeHtml(event.region || 'Global')}</strong></div></div>
+      <div class="access-row"><span class="access-tag ${escapeHtml(event.access || 'unknown')}">${escapeHtml(access)}</span><span class="platform-text">${escapeHtml(event.platform || 'Platform unidentified')}</span></div>
+      <div class="card-actions">${actionUrl ? `<a class="primary-link" href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer">${event.stream_url ? 'Open stream ↗' : 'Where to watch ↗'}</a>` : '<a class="primary-link" href="https://www.google.com/search?q='+encodeURIComponent(`${event.series} ${event.name} live stream`)+'" target="_blank" rel="noopener noreferrer">Find a stream ↗</a>'}${secondaryUrl && secondaryUrl !== actionUrl ? `<a href="${escapeHtml(secondaryUrl)}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}</div>
     </article>`;
   }).join('');
 }
 function renderDiscoveries() {
   const list = $('#discover-list');
   if (!state.discoveries.length) {
-    list.innerHTML = '<div class="empty-state"><strong>Nenhuma pista carregada.</strong><p>Execute uma varredura para procurar anúncios de transmissões ao vivo.</p></div>'; return;
+    list.innerHTML = '<div class="empty-state"><strong>No discovery leads loaded.</strong><p>Run a scan to find live-stream announcements.</p></div>'; return;
   }
   list.innerHTML = state.discoveries.map(item => {
     const url = safeUrl(item.url);
-    return `<article class="discovery-card"><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary || item.note || 'Sem resumo disponível.')}</p><div class="discovery-meta"><span>${escapeHtml(item.source_name || 'Fonte externa')}</span><span>${escapeHtml(item.series || 'Motorsport')}</span><span>${escapeHtml(formatDate(item.published_utc || item.published))}</span></div></div><div class="discovery-side"><span class="access-tag ${escapeHtml(item.access || 'unknown')}">${escapeHtml(accessText[item.access] || accessText.unknown)}</span><span class="platform-text">${escapeHtml(item.platform || 'Plataforma não identificada')}</span>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Abrir fonte ↗</a>` : ''}</div></article>`;
+    return `<article class="discovery-card"><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary || item.note || 'No summary available.')}</p><div class="discovery-meta"><span>${escapeHtml(item.source_name || 'External source')}</span><span>${escapeHtml(item.series || 'Motorsport')}</span><span>${escapeHtml(formatDate(item.published_utc || item.published))}</span></div></div><div class="discovery-side"><span class="access-tag ${escapeHtml(item.access || 'unknown')}">${escapeHtml(accessText[item.access] || accessText.unknown)}</span><span class="platform-text">${escapeHtml(item.platform || 'Platform unidentified')}</span>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}</div></article>`;
   }).join('');
 }
 function renderSearchPresets() {
@@ -81,15 +81,15 @@ function renderSearchPresets() {
 function renderSources() {
   $('#source-grid').innerHTML = state.sources.map(source => {
     const url = safeUrl(source.url); const evidence = safeUrl(source.official_info);
-    return `<article class="source-card"><div class="source-card-top"><h3>${escapeHtml(source.platform)}</h3><span class="access-tag ${escapeHtml(source.access)}">${escapeHtml(accessText[source.access] || accessText.unknown)}</span></div><div class="source-series">${escapeHtml(source.series)}</div><div class="source-region">${escapeHtml(source.region)}</div><p>${escapeHtml(source.note)}</p><div class="source-evidence">${source.confidence === "official" ? "REFERÊNCIA OFICIAL" : source.confidence === "regional" ? "GUIA REGIONAL" : "FONTE / COMUNIDADE"} · atualizado em ${escapeHtml(source.last_checked || "não informado")}</div><div class="source-actions">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Abrir plataforma ↗</a>` : ''}${evidence ? `<a href="${escapeHtml(evidence)}" target="_blank" rel="noopener noreferrer">Ver referência</a>` : ''}</div></article>`;
-  }).join('') || '<div class="empty-state">Nenhuma fonte cadastrada.</div>';
+    return `<article class="source-card"><div class="source-card-top"><h3>${escapeHtml(source.platform)}</h3><span class="access-tag ${escapeHtml(source.access)}">${escapeHtml(accessText[source.access] || accessText.unknown)}</span></div><div class="source-series">${escapeHtml(source.series)}</div><div class="source-region">${escapeHtml(source.region)}</div><p>${escapeHtml(source.note)}</p><div class="source-evidence">${source.confidence === "official" ? "OFFICIAL REFERENCE" : source.confidence === "regional" ? "REGIONAL GUIDE" : "SOURCE / COMMUNITY"} · checked on ${escapeHtml(source.last_checked || "not provided")}</div><div class="source-actions">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open platform ↗</a>` : ''}${evidence ? `<a href="${escapeHtml(evidence)}" target="_blank" rel="noopener noreferrer">View reference</a>` : ''}</div></article>`;
+  }).join('') || '<div class="empty-state">No sources added.</div>';
 }
 function renderDashboard(data) {
   state.events = data.events || []; state.discoveries = data.discoveries || []; state.sources = data.sources || []; state.searchPresets = data.search_presets || [];
   renderStats(data); renderEvents(); renderDiscoveries(); renderSources(); renderSearchPresets(); checkUpcomingAlerts();
 }
 async function fetchDashboard() {
-  const response = await fetch('/api/dashboard'); if (!response.ok) throw new Error('Não foi possível carregar o painel.');
+  const response = await fetch('/api/dashboard'); if (!response.ok) throw new Error('Could not load the dashboard.');
   renderDashboard(await response.json());
 }
 async function refreshRadar() {
@@ -97,9 +97,9 @@ async function refreshRadar() {
   try {
     const response = await fetch('/api/refresh', {method:'POST'}); const result = await response.json();
     await fetchDashboard();
-    if (result.errors?.length) showToast(`Varredura parcial. ${result.errors.join(' | ')}`, true);
-    else showToast(`Radar atualizado: ${result.events_updated} eventos e ${result.discoveries_updated} pistas novas.`);
-  } catch (error) { showToast(error.message || 'Falha na atualização.', true); }
+    if (result.errors?.length) showToast(`Partial scan. ${result.errors.join(' | ')}`, true);
+    else showToast(`Radar refreshed: ${result.events_updated} events and ${result.discoveries_updated} new discovery leads.`);
+  } catch (error) { showToast(error.message || 'Refresh failed.', true); }
   finally { setLoading(false); }
 }
 function activateTab(tab) {
@@ -112,18 +112,18 @@ async function submitManualEvent(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget); const payload = Object.fromEntries(form.entries());
   for (const key of ['end','stream_url','watch_url','category','region','kind']) if (!payload[key]) payload[key] = null;
-  const message = $('#form-message'); message.textContent = 'Salvando...';
+  const message = $('#form-message'); message.textContent = 'Saving...';
   try {
     const response = await fetch('/api/events', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Não foi possível salvar.');
-    closeDialog(); event.currentTarget.reset(); await fetchDashboard(); showToast('Evento adicionado ao radar.'); activateTab('events');
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Could not save the event.');
+    closeDialog(); event.currentTarget.reset(); await fetchDashboard(); showToast('Event added to APEX.'); activateTab('events');
   } catch (error) { message.textContent = error.message; }
 }
 async function requestNotifications() {
-  if (!('Notification' in window)) { showToast('Este navegador não oferece notificações.', true); return; }
+  if (!('Notification' in window)) { showToast('This browser does not support notifications.', true); return; }
   const permission = await Notification.requestPermission();
-  if (permission === 'granted') { state.notificationPermission = true; $('#notify-button').textContent = 'Alertas ativados'; showToast('Alertas ativados enquanto o radar estiver aberto.'); checkUpcomingAlerts(); }
-  else showToast('Permissão de notificação não concedida.', true);
+  if (permission === 'granted') { state.notificationPermission = true; $('#notify-button').textContent = 'Alerts enabled'; showToast('Alerts are enabled while APEX remains open.'); checkUpcomingAlerts(); }
+  else showToast('Notification permission was not granted.', true);
 }
 function checkUpcomingAlerts() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
@@ -134,7 +134,7 @@ function checkUpcomingAlerts() {
     if (diff > 0 && diff <= 15*60*1000) {
       const key = `radar-alert-${event.id || event.external_id}-${event.start_utc}`;
       if (!sessionStorage.getItem(key)) {
-        new Notification(`Começa em breve: ${event.name}`, {body:`${event.series} · ${formatDate(event.start_utc)} · ${event.platform || 'plataforma a confirmar'}`});
+        new Notification(`Starts in breve: ${event.name}`, {body:`${event.series} · ${formatDate(event.start_utc)} · ${event.platform || 'platform TBC'}`});
         sessionStorage.setItem(key, '1');
       }
     }
@@ -169,28 +169,28 @@ async function searchYoutubeLive() {
   const button = $('#youtube-search'); const original = button.textContent;
   // Abre a aba no clique para evitar bloqueio de popup após a chamada à API.
   const fallbackTab = window.open('about:blank', '_blank');
-  button.disabled = true; button.textContent = 'Buscando...';
+  button.disabled = true; button.textContent = 'Searching...';
   try {
     const response = await fetch(`/api/youtube-live?q=${encodeURIComponent(term)}`);
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Falha na busca do YouTube.');
+    if (!response.ok) throw new Error(data.error || 'YouTube search failed.');
     if (!data.configured) {
-      showToast('API do YouTube não configurada. Abrindo a busca pública.');
+      showToast('YouTube API is not configured. Opening public search.');
       const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${term} live stream`)}`;
       if (fallbackTab) fallbackTab.location.href = fallbackUrl;
-      else showToast('O navegador bloqueou a nova aba. Permita pop-ups para abrir a busca.', true);
+      else showToast('The browser blocked the new tab. Allow pop-ups to open search.', true);
       return;
     }
     if (fallbackTab) fallbackTab.close();
     const target = $('#platform-results');
     if (!data.items.length) {
-      target.innerHTML = '<div class="platform-empty">Nenhuma live correspondente foi retornada pelo YouTube agora.</div>';
+      target.innerHTML = '<div class="platform-empty">YouTube returned no matching live videos right now.</div>';
       return;
     }
-    target.innerHTML = `<div class="platform-results-heading">${data.items.length} TRANSMISSÃO(ÕES) MARCADA(S) COMO AO VIVO PELO YOUTUBE</div>` + data.items.map(item => `<article class="platform-result"><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.channel)}</span></div><span class="status-tag live">YouTube ao vivo</span><span class="access-tag unknown">Preço não confirmado</span><a href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Assistir ↗</a></article>`).join('');
+    target.innerHTML = `<div class="platform-results-heading">${data.items.length} VIDEO(S) CURRENTLY MARKED LIVE BY YOUTUBE</div>` + data.items.map(item => `<article class="platform-result"><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.channel)}</span></div><span class="status-tag live">YouTube Live</span><span class="access-tag unknown">Access unknown</span><a href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Watch ↗</a></article>`).join('');
   } catch (error) {
     if (fallbackTab) fallbackTab.close();
-    showToast(error.message || 'Erro ao procurar no YouTube.', true);
+    showToast(error.message || 'Error searching YouTube.', true);
   }
   finally { button.disabled = false; button.textContent = original; }
 }
@@ -198,16 +198,16 @@ async function searchYoutubeLive() {
 async function searchNewsRadar() {
   const term = currentSearchTerm();
   const button = $("#news-search"); const original = button.textContent;
-  button.disabled = true; button.textContent = "Pesquisando...";
+  button.disabled = true; button.textContent = "Searching...";
   try {
     const response = await fetch(`/api/discover-search?q=${encodeURIComponent(term)}`);
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "A busca no radar falhou.");
+    if (!response.ok) throw new Error(data.error || "APEX search failed.");
     await fetchDashboard();
     activateTab("discover");
-    showToast(data.count ? `${data.count} pistas encontradas para: ${term}` : `Nenhuma notícia recente encontrada para: ${term}`);
+    showToast(data.count ? `${data.count} leads found for: ${term}` : `No recent news found for: ${term}`);
   } catch (error) {
-    showToast(error.message || "Não foi possível pesquisar essa modalidade.", true);
+    showToast(error.message || "Could not search this discipline.", true);
   } finally {
     button.disabled = false; button.textContent = original;
   }
@@ -226,6 +226,6 @@ $('#category-preset').addEventListener('change', applySearchPreset);
 $('#youtube-search').addEventListener('click', searchYoutubeLive);
 $('#twitch-search').addEventListener('click', () => openLiveSearch('twitch'));
 $('#web-search').addEventListener('click', () => openLiveSearch('web'));
-$('#local-clock').textContent = `HORÁRIO DE BRASÍLIA · ${new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
+$('#local-clock').textContent = `LOCAL TIME · ${new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
 fetchDashboard().catch(error => showToast(error.message, true));
 window.setInterval(checkUpcomingAlerts, 60_000);
