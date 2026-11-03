@@ -38,11 +38,11 @@ QUERIES = [
     '(Rennsport live OR Rallye live OR Kart live OR Bergrennen live OR Motorsport livestream) Meisterschaft',
     '(motorsport live OR karting live OR rally live OR speedway live) Sweden OR Sverige',
     '(motorsport live OR karting live OR rally live OR speedway live) Norway OR Norge',
-    '(motorsport live OR karting live OR rally live OR speedway live) Finland OR Suomi',
+    '(motorsport live OR karting live OR rally live OR speedway live OR autosuunnistus OR rallisprint) Finland OR Suomi',
     '(motorsport live OR karting live OR rally live OR speedway live) Denmark OR Danmark',
 ]
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.2.0; +https://github.com/)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.3.0; +https://github.com/)"}
 LIVE_TERMS = '("live stream" OR livestream OR "watch live" OR streaming OR "ao vivo" OR transmissão)'
 
 # Google News also interprets "rally" as a political event. Negative terms
@@ -75,7 +75,8 @@ MOTORSPORT_CONTEXT_RE = re.compile(
     r"rally car|rally cars|co[- ]drivers?|special stage|rally stage|rally stages|"
     r"parc ferme|paddock|pit lane|pit stop|race weekend|race circuit|race track|"
     r"endurance racing|sprint car|midget racing|dirt late model|time attack|"
-    r"autocross|off[- ]road racing)\b",
+    r"autocross|off[- ]road racing|autosuunnistus|rallisprint|rally sprint|"
+    r"moottoriurheilu|kilpa-autoilu|rallye championship)\b",
     re.IGNORECASE,
 )
 
@@ -94,12 +95,11 @@ def is_motorsport_result(title: str, description: str = "") -> bool:
 
 REACTION_ONLY_RE = re.compile(
     r"\b(?:react(?:ion)?|watchalong|watch along|second screen|live blog|live updates|"
-    r"text commentary|live commentary|commentary only|reaction stream|reação|reacao|"
-    r"comentários em tempo real|comentarios em tempo real)\b",
+    r"reaction stream|reação|reacao|react ao vivo|watch party|watch-party)\b",
     re.IGNORECASE,
 )
 WATCH_GUIDE_RE = re.compile(
-    r"\b(?:where to watch|how to watch|watch live|watch online|live stream|"
+    r"\b(?:live|where to watch|how to watch|watch live|watch online|live stream|livestream|live broadcast|live coverage|"
     r"assistir ao vivo|onde assistir|link para assistir|transmissão ao vivo|transmissao ao vivo|"
     r"streaming ao vivo|watch the race live)\b",
     re.IGNORECASE,
@@ -126,7 +126,7 @@ def is_reaction_or_commentary(title: str, description: str = "") -> bool:
 
 
 def is_stale_watch_guide(published: str | None, title: str, description: str = "", now=None) -> bool:
-    """Filter old watch-this-race guides; publication recency alone is not live status."""
+    """Identify older broadcast guides for historical labelling; publication recency is not live status."""
     if not published or not WATCH_GUIDE_RE.search(f"{title or ''} {description or ''}"):
         return False
     if FUTURE_EVENT_RE.search(f"{title or ''} {description or ''}"):
@@ -144,11 +144,15 @@ def is_stale_watch_guide(published: str | None, title: str, description: str = "
 
 
 def is_valid_discovery(title: str, description: str = "", published: str | None = None, now=None) -> bool:
-    """Return whether a news item is a plausible motorsport broadcast lead."""
+    """Return whether a news item is a plausible motorsport broadcast lead.
+
+    Article age is deliberately NOT a rejection criterion. Old articles can reveal
+    obscure series, local broadcasters, channels, and recurring coverage patterns.
+    They are labelled as historical references and never treated as live-now proof.
+    """
     return (
         is_motorsport_result(title, description)
         and not is_reaction_or_commentary(title, description)
-        and not is_stale_watch_guide(published, title, description, now=now)
     )
 
 
@@ -174,7 +178,7 @@ def classify_access(text: str) -> str:
     ):
         return "subscription"
     if re.search(
-        r"free[- ]to[- ](view|watch|air)|watch for free|free livestream|free live stream|"
+        r"free[- ]to[- ](view|watch|air)|watch for free|free livestream|free live stream|free live broadcast|"
         r"live and free|stream(?:ed|ing)? live and free|grátis|gratuito|gratuitamente|de graça|"
         r"transmissão gratuita|acesso gratuito|gratis en directo|kostenlos live",
         value,
@@ -184,27 +188,37 @@ def classify_access(text: str) -> str:
 
 
 def detect_platform(text: str) -> str:
+    """Detect all explicitly mentioned broadcast platforms, not just the first one."""
     value = text.lower()
     patterns = [
-        (r"youtube", "YouTube"), (r"twitch", "Twitch"),
-        (r"fiawec\+", "FIAWEC+"), (r"rally\.tv", "Rally.TV"),
+        (r"flyingfinn\.tv", "FlyingFinn.tv"),
+        (r"moottoriurheilu\.tv", "Moottoriurheilu.tv"),
+        (r"youtube", "YouTube"),
+        (r"twitch", "Twitch"),
+        (r"fiawec\+", "FIAWEC+"),
+        (r"rally\.tv", "Rally.TV"),
         (r"motogp videopass|videopass", "MotoGP VideoPass"),
         (r"worldsbk videopass", "WorldSBK VideoPass"),
-        (r"f1 tv", "F1 TV"), (r"dazn", "DAZN"),
-        (r"flo?racing", "FloRacing"), (r"peacock", "Peacock"),
-        (r"nhra\.tv|nhra tv", "NHRA.tv"), (r"smx video ?pass|supermotocross video pass", "SMX Video Pass"),
-        (r"joyn", "Joyn"), (r"servustv", "ServusTV On"),
-        (r"band ?play", "BandPlay"), (r"bandsports", "BandSports"),
-        (r"sportv", "SporTV"), (r"globoplay", "Globoplay"),
+        (r"f1 tv", "F1 TV"),
+        (r"dazn", "DAZN"),
+        (r"flo?racing", "FloRacing"),
+        (r"peacock", "Peacock"),
+        (r"nhra\.tv|nhra tv", "NHRA.tv"),
+        (r"smx video ?pass|supermotocross video pass", "SMX Video Pass"),
+        (r"joyn", "Joyn"),
+        (r"servustv", "ServusTV On"),
+        (r"band ?play", "BandPlay"),
+        (r"bandsports", "BandSports"),
+        (r"sportv", "SporTV"),
+        (r"globoplay", "Globoplay"),
         (r"imsa\.com/tvlive|imsa tv", "IMSA TV"),
         (r"ind(y|i)car live", "INDYCAR LIVE"),
         (r"fim-moto\.tv", "FIM-MOTO.TV"),
-        (r"superview", "SuperView"), (r"kayo sports", "Kayo Sports"),
+        (r"superview", "SuperView"),
+        (r"kayo sports", "Kayo Sports"),
     ]
-    for pattern, name in patterns:
-        if re.search(pattern, value):
-            return name
-    return "Unidentified"
+    found = [name for pattern, name in patterns if re.search(pattern, value)]
+    return ", ".join(found[:4]) if found else "Unidentified"
 
 
 def detect_series(text: str) -> str:
@@ -227,6 +241,7 @@ def detect_series(text: str) -> str:
         (r"dtm|tcr|btcc|touring car|touring cars", "Touring Cars / TCR"),
         (r"nascar|stock car|supercars championship|v8 supercars", "Stock Cars / NASCAR"),
         (r"indycar|indy 500|indy nxt", "IndyCar"),
+        (r"autosuunnistus", "Autosuunnistus / precision navigation motorsport"),
         (r"kart|karting|kartódromo|kartodromo", "Karting"),
         (r"rallycross|world rx|world rallycross|rally cross", "Rallycross"),
         (r"rally raid|dakar|baja|cross.country rally", "Rally Raid / Baja"),
@@ -310,6 +325,7 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
             continue
         key = hashlib.sha256(link.encode("utf-8")).hexdigest()[:18]
         full_text = f"{title} {description}"
+        historical = is_stale_watch_guide(published, title, description)
         results[key] = {
             "id": key,
             "title": title,
@@ -320,8 +336,15 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
             "series": detect_series(full_text),
             "platform": detect_platform(full_text),
             "access": classify_access(full_text),
-            "is_verified_stream": False,
-            "note": "News lead only. Open the original source to confirm the event date, region, platform, and access.",
+            "lead_status": "historical_reference" if historical else "unverified_lead",
+            "is_verified_live": False,
+            "note": (
+                "Historical broadcast reference. It may help identify a series or broadcaster, "
+                "but it is not evidence that a race is live now."
+                if historical else
+                "News lead only. It is not proof of a current live stream; verify the event date, "
+                "session, region, platform, and access at the original source."
+            ),
         }
     ordered = sorted(results.values(), key=lambda item: item.get("published") or "", reverse=True)
     return ordered[:limit]
@@ -362,7 +385,10 @@ def search_custom_discovery_leads(query: str, limit: int = 25) -> list[dict]:
         results = _parse_feed(payload, limit=max(1, min(limit, 40)))
     except ElementTree.ParseError as exc:
         raise OSError("The news source returned an invalid feed.") from exc
-    # Explain that custom-search results are leads, not official verification.
+    # Custom search results remain leads, never live-now confirmations.
     for item in results:
-        item["note"] = "Custom Google News result. This is an editorial lead, not a verified live stream. Check the original source."
+        if item.get("lead_status") == "historical_reference":
+            item["note"] = "Historical custom-search reference. Useful for finding a local series or broadcaster, but not evidence of a current live stream."
+        else:
+            item["note"] = "Custom Google News result. This is an editorial lead, not a verified live stream. Check the original source."
     return results
