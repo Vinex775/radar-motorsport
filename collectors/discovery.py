@@ -42,8 +42,53 @@ QUERIES = [
     '(motorsport live OR karting live OR rally live OR speedway live) Denmark OR Danmark',
 ]
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.1; +https://github.com/)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.1.1; +https://github.com/)"}
 LIVE_TERMS = '("live stream" OR livestream OR "watch live" OR streaming OR "ao vivo" OR transmissão)'
+
+# Google News interpreta "rally" também como comício. Os termos negativos
+# ajudam na consulta, mas a validação local abaixo é a barreira definitiva.
+EXCLUDED_NEWS_TERMS = (
+    '-election -elections -candidate -candidates -senator -senate -governor '
+    '-voter -voters -GOP -Democrat -Democratic -Republican -politics '
+    '-political -campaign -ballot -parliament -congress -mayor -politician '
+    '-politicians -electionday'
+)
+
+POLITICAL_CONTEXT_RE = re.compile(
+    r"\b(?:elections?|election day|candidates?|senators?|senate|governors?|"
+    r"presidents?|voters?|voting|gop|democrats?|republicans?|politics?|"
+    r"political|campaigns?|ballots?|parliament|congress|mayors?|politicians?|"
+    r"primary election|general election)\b",
+    re.IGNORECASE,
+)
+
+# Sinais explícitos de esporte a motor, sem depender da palavra ambígua "race".
+MOTORSPORT_CONTEXT_RE = re.compile(
+    r"\b(?:motorsports?|motor sports?|racing|race cars?|racecars?|racing cars?|"
+    r"kart(?:ing)?|formula\s?[1-4e]|f[1-4]|fia|wrc|erc|wec|elms|imsa|nascar|"
+    r"indycar|indy 500|motogp|moto2|moto3|worldsbk|wsbk|mxgp|supercross|"
+    r"motocross|supermotocross|nhra|drag racing|dragster|speedway|hillclimb|"
+    r"hill climb|drift masters|formula drift|gt3|gt4|gt world challenge|dtm|"
+    r"btcc|tcr series|stock car|supercars championship|rallycross|rally raid|"
+    r"rally championship|rally championships|rally series|rally driver|rally drivers|"
+    r"rally car|rally cars|co[- ]drivers?|special stage|rally stage|rally stages|"
+    r"parc ferme|paddock|pit lane|pit stop|race weekend|race circuit|race track|"
+    r"endurance racing|sprint car|midget racing|dirt late model|time attack|"
+    r"autocross|off[- ]road racing)\b",
+    re.IGNORECASE,
+)
+
+
+def is_motorsport_result(title: str, description: str = "") -> bool:
+    """Rejeita comícios/notícias políticas e exige contexto explícito de corrida.
+
+    "Rally" sozinho nunca é evidência suficiente: precisa vir acompanhado
+    de termos típicos de rally automobilístico (WRC, etapa, piloto, carro etc.).
+    """
+    text = f"{title or ''} {description or ''}"
+    if POLITICAL_CONTEXT_RE.search(text):
+        return False
+    return bool(MOTORSPORT_CONTEXT_RE.search(text))
 
 
 def _plain_text(value: str) -> str:
@@ -178,7 +223,8 @@ def locale_for_query(query: str) -> tuple[str, str, str]:
 
 def _fetch_query(query: str) -> bytes:
     hl, gl, ceid = locale_for_query(query)
-    url = "https://news.google.com/rss/search?q=" + quote_plus(query) + f"&hl={hl}&gl={gl}&ceid={ceid}"
+    safe_query = f"({query}) {EXCLUDED_NEWS_TERMS}"
+    url = "https://news.google.com/rss/search?q=" + quote_plus(safe_query) + f"&hl={hl}&gl={gl}&ceid={ceid}"
     request = Request(url, headers=HEADERS)
     with urlopen(request, timeout=10) as response:
         return response.read()
@@ -195,6 +241,10 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
         source_node = item.find("source")
         source_name = _plain_text(source_node.text if source_node is not None else "Google News")
         if not title or not link or not link.startswith(("http://", "https://")):
+            continue
+        # Não basta a notícia ter sido retornada por uma busca com "rally":
+        # validamos título e resumo para evitar comícios e política.
+        if not is_motorsport_result(title, description):
             continue
         key = hashlib.sha256(link.encode("utf-8")).hexdigest()[:18]
         full_text = f"{title} {description}"
