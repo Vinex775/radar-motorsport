@@ -3,6 +3,8 @@ const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value='') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
 const accessText = {free:'Free', subscription:'Subscription', ppv:'Pay-per-view', unknown:'Unknown'};
 const statusText = {live:'Scheduled window active', upcoming:'Upcoming', unknown:'Time unknown'};
+const leadStatusText = {historical_reference:'Historical reference', unverified_lead:'Unverified lead'};
+const GLOBAL_LIVE_QUERY = 'motorsport|racing|race|karting|rally|rallycross|rally raid|endurance|GT3|GT4|touring cars|stock cars|drift|drag racing|hillclimb|hill climb|speedway|motocross|supercross|enduro|superbike|motorcycle racing|sprint cars|autosuunnistus|rallisprint|ice racing|autocross|time attack|club racing|regional race';
 
 function safeUrl(value) {
   try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
@@ -68,14 +70,16 @@ function renderDiscoveries() {
   }
   list.innerHTML = state.discoveries.map(item => {
     const url = safeUrl(item.url);
-    return `<article class="discovery-card"><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary || item.note || 'No summary available.')}</p><div class="discovery-meta"><span>${escapeHtml(item.source_name || 'External source')}</span><span>${escapeHtml(item.series || 'Motorsport')}</span><span>${escapeHtml(formatDate(item.published_utc || item.published))}</span></div></div><div class="discovery-side"><span class="access-tag ${escapeHtml(item.access || 'unknown')}">${escapeHtml(accessText[item.access] || accessText.unknown)}</span><span class="platform-text">${escapeHtml(item.platform || 'Platform unidentified')}</span>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}</div></article>`;
+    const leadStatus = leadStatusText[item.lead_status] || 'Unverified lead';
+    const historicalClass = item.lead_status === 'historical_reference' ? ' historical-reference' : '';
+    return `<article class="discovery-card${historicalClass}"><div><div class="discovery-badges"><span class="status-tag ${item.lead_status === 'historical_reference' ? 'past' : 'unknown'}">${escapeHtml(leadStatus)}</span><span class="access-tag ${escapeHtml(item.access || 'unknown')}">${escapeHtml(accessText[item.access] || accessText.unknown)}</span></div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary || item.note || 'No summary available.')}</p><div class="discovery-meta"><span>${escapeHtml(item.source_name || 'External source')}</span><span>${escapeHtml(item.series || 'Motorsport')}</span><span>${escapeHtml(formatDate(item.published_utc || item.published))}</span></div><small>${escapeHtml(item.note || 'Editorial lead only — not a verified live stream.')}</small></div><div class="discovery-side"><span class="platform-text">${escapeHtml(item.platform || 'Platform unidentified')}</span>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}</div></article>`;
   }).join('');
 }
 function renderSearchPresets() {
   const select = $("#category-preset");
   if (!select) return;
   const current = select.value;
-  select.innerHTML = '<option value="">Escolha uma modalidade para preencher a busca</option>' + state.searchPresets.map(preset => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.label)}</option>`).join('');
+  select.innerHTML = '<option value="">Choose a discipline to fill the search</option>' + state.searchPresets.map(preset => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.label)}</option>`).join('');
   if (state.searchPresets.some(preset => preset.id === current)) select.value = current;
 }
 function renderSources() {
@@ -134,7 +138,7 @@ function checkUpcomingAlerts() {
     if (diff > 0 && diff <= 15*60*1000) {
       const key = `radar-alert-${event.id || event.external_id}-${event.start_utc}`;
       if (!sessionStorage.getItem(key)) {
-        new Notification(`Starts in breve: ${event.name}`, {body:`${event.series} · ${formatDate(event.start_utc)} · ${event.platform || 'platform TBC'}`});
+        new Notification(`Starts soon: ${event.name}`, {body:`${event.series} · ${formatDate(event.start_utc)} · ${event.platform || 'platform TBC'}`});
         sessionStorage.setItem(key, '1');
       }
     }
@@ -164,30 +168,35 @@ function openLiveSearch(target) {
   };
   const url = urls[target]; if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
-async function searchYoutubeLive() {
+async function searchYoutubeLive(openPublicFallback = true) {
   const term = currentSearchTerm();
   const button = $('#youtube-search'); const original = button.textContent;
-  // Abre a aba no clique para evitar bloqueio de popup após a chamada à API.
-  const fallbackTab = window.open('about:blank', '_blank');
+  // Open the public search only after a direct user click; browsers block delayed popups.
+  const fallbackTab = openPublicFallback ? window.open('about:blank', '_blank') : null;
   button.disabled = true; button.textContent = 'Searching...';
   try {
-    const response = await fetch(`/api/youtube-live?q=${encodeURIComponent(term)}`);
+    const response = await fetch(`/api/live-now?q=${encodeURIComponent(term)}`);
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'YouTube search failed.');
     if (!data.configured) {
-      showToast('YouTube API is not configured. Opening public search.');
-      const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${term} live stream`)}`;
-      if (fallbackTab) fallbackTab.location.href = fallbackUrl;
-      else showToast('The browser blocked the new tab. Allow pop-ups to open search.', true);
+      const target = $('#platform-results');
+      target.innerHTML = '<div class="platform-empty">For API-verified Live Now results, configure YOUTUBE_API_KEY. The button can also open YouTube’s public Live-filtered search.</div>';
+      if (openPublicFallback) {
+        showToast('YouTube API is not configured. Opening public Live-filtered search; results are not API-verified.');
+        const baseQuery = term.toLowerCase() === 'motorsport' ? GLOBAL_LIVE_QUERY : term;
+        const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${baseQuery} live`)}&sp=EgJAAQ%253D%253D`;
+        if (fallbackTab) fallbackTab.location.href = fallbackUrl;
+        else showToast('The browser blocked the new tab. Allow pop-ups to open search.', true);
+      }
       return;
     }
     if (fallbackTab) fallbackTab.close();
     const target = $('#platform-results');
     if (!data.items.length) {
-      target.innerHTML = '<div class="platform-empty">YouTube returned no matching live videos right now.</div>';
+      target.innerHTML = '<div class="platform-empty">YouTube returned no matching videos currently marked LIVE. Try a more specific category or region.</div>';
       return;
     }
-    target.innerHTML = `<div class="platform-results-heading">${data.items.length} VIDEO(S) CURRENTLY MARKED LIVE BY YOUTUBE</div>` + data.items.map(item => `<article class="platform-result"><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.channel)}</span></div><span class="status-tag live">YouTube Live</span><span class="access-tag unknown">Access unknown</span><a href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Watch ↗</a></article>`).join('');
+    target.innerHTML = `<div class="platform-results-heading">${data.items.length} VIDEO(S) CURRENTLY MARKED LIVE BY YOUTUBE</div><p class="data-note">These are live according to YouTube's API, not independently verified as an uninterrupted race feed. Price and regional availability are unknown.</p>` + data.items.map(item => `<article class="platform-result"><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.channel)}</span></div><span class="status-tag live">LIVE NOW · API</span><span class="access-tag unknown">Access unknown</span><a href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Watch ↗</a></article>`).join('');
   } catch (error) {
     if (fallbackTab) fallbackTab.close();
     showToast(error.message || 'Error searching YouTube.', true);
@@ -227,5 +236,5 @@ $('#youtube-search').addEventListener('click', searchYoutubeLive);
 $('#twitch-search').addEventListener('click', () => openLiveSearch('twitch'));
 $('#web-search').addEventListener('click', () => openLiveSearch('web'));
 $('#local-clock').textContent = `LOCAL TIME · ${new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
-fetchDashboard().catch(error => showToast(error.message, true));
+fetchDashboard().then(() => searchYoutubeLive(false)).catch(error => showToast(error.message, true));
 window.setInterval(checkUpcomingAlerts, 60_000);
