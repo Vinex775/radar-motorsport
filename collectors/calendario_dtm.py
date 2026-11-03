@@ -1,7 +1,7 @@
-"""Coleta o calendário público da DTM.
+"""Collect the public DTM schedule.
 
-A API não é uma API pública documentada; por isso o coletor falha de forma
-segura e nunca impede que os demais módulos do radar funcionem.
+The API is not publicly documented, so this collector fails safely and
+never prevents other radar modules from working.
 """
 from __future__ import annotations
 
@@ -36,14 +36,14 @@ def _get(params: dict[str, Any]) -> dict[str, Any]:
         with urlopen(request, timeout=12) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (HTTPError, URLError, TimeoutError) as exc:
-        raise OSError(f"Falha ao consultar a API da DTM: {exc}") from exc
+        raise OSError(f"Failed to query the DTM API: {exc}") from exc
     if not isinstance(payload, dict):
-        raise ValueError("A API da DTM retornou um formato inesperado.")
+        raise ValueError("The DTM API returned an unexpected format.")
     return payload
 
 
-def buscar_eventos() -> list[dict[str, Any]]:
-    """Retorna sessões futuras/atuais da DTM no formato padronizado do radar."""
+def fetch_dtm_events() -> list[dict[str, Any]]:
+    """Return upcoming/current DTM sessions in the radar standard format."""
     payload = _get({"query": "eventsRacetrack"})
     now = datetime.now(timezone.utc)
     candidates = []
@@ -88,7 +88,7 @@ def buscar_eventos() -> list[dict[str, Any]]:
                 continue
             if end and end < now:
                 continue
-            label = session.get("label") or "Sessão"
+            label = session.get("label") or "Session"
             headline = session.get("headline") or details.get("name") or "DTM"
             results.append({
                 "external_id": f"dtm:{slug}:{session.get('id') or start.isoformat()}:{label}",
@@ -98,35 +98,35 @@ def buscar_eventos() -> list[dict[str, Any]]:
                 "kind": label,
                 "start": start.isoformat(),
                 "end": end.isoformat() if end else None,
-                "platform": "Ver canais oficiais",
+                "platform": "See official broadcasters",
                 "access": "unknown",
                 "stream_url": None,
                 "watch_url": "https://www.dtm.com/live/live-on-tv",
-                "region": "Global — disponibilidade varia por país",
+                "region": "Global — availability varies by country",
                 "confidence": "regional",
                 "source_name": "DTM oficial",
                 "source_url": "https://www.dtm.com/live/live-on-tv",
             })
             added_sessions += 1
 
-        # Caso o cronograma de sessões ainda não esteja publicado.
+        # If the session timetable has not been published yet.
         if not added_sessions:
             start = _parse_datetime(details.get("startTime") or event.get("startTime"))
             end = _parse_datetime(details.get("endTime") or event.get("endTime"))
             if start:
                 results.append({
                     "external_id": f"dtm:{slug}:weekend",
-                    "name": details.get("name") or event.get("name") or "Etapa DTM",
+                    "name": details.get("name") or event.get("name") or "DTM round",
                     "series": "DTM",
                     "category": "Turismo / GT",
-                    "kind": "Fim de semana de corrida",
+                    "kind": "Race weekend",
                     "start": start.isoformat(),
                     "end": end.isoformat() if end else None,
-                    "platform": "Ver canais oficiais",
+                    "platform": "See official broadcasters",
                     "access": "unknown",
                     "stream_url": None,
                     "watch_url": "https://www.dtm.com/live/live-on-tv",
-                    "region": "Global — disponibilidade varia por país",
+                    "region": "Global — availability varies by country",
                     "confidence": "regional",
                     "source_name": "DTM oficial",
                     "source_url": "https://www.dtm.com/live/live-on-tv",

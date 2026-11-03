@@ -1,7 +1,7 @@
-"""Pesquisa vídeos que o YouTube Data API identifica como transmissões ativas.
+"""Search for videos that the YouTube Data API currently identifies as live streams.
 
-A API key é opcional e deve ser fornecida por variável de ambiente para não
-ficar gravada no repositório.
+The API key is optional and should be supplied through an environment variable so it is not
+stored in the repository.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 API = "https://www.googleapis.com/youtube/v3/search"
 
 
-def buscar_lives(query: str, max_results: int = 25) -> dict:
+def search_live_videos(query: str, max_results: int = 25) -> dict:
     api_key = os.environ.get("YOUTUBE_API_KEY", "").strip()
     if not api_key:
         return {"configured": False, "items": []}
@@ -33,14 +33,14 @@ def buscar_lives(query: str, max_results: int = 25) -> dict:
         with urlopen(request, timeout=12) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        # Não devolve a URL da requisição, pois ela contém a API key.
+        # Do not expose the request URL because it contains the API key.
         try:
             detail = json.loads(exc.read().decode("utf-8")).get("error", {}).get("message", "")
         except (ValueError, AttributeError):
             detail = ""
         raise RuntimeError(detail or f"YouTube API respondeu HTTP {exc.code}.") from exc
     except (URLError, TimeoutError, OSError, ValueError) as exc:
-        raise RuntimeError(f"Não foi possível consultar o YouTube: {exc}") from exc
+        raise RuntimeError(f"Could not query YouTube: {exc}") from exc
 
     items = []
     for item in payload.get("items", []) or []:
@@ -49,13 +49,13 @@ def buscar_lives(query: str, max_results: int = 25) -> dict:
         if not video_id:
             continue
         items.append({
-            "title": snippet.get("title") or "Transmissão ao vivo",
-            "channel": snippet.get("channelTitle") or "Canal do YouTube",
+            "title": snippet.get("title") or "Live stream",
+            "channel": snippet.get("channelTitle") or "YouTube channel",
             "published": snippet.get("publishedAt"),
             "url": f"https://www.youtube.com/watch?v={video_id}",
             "platform": "YouTube",
             "access": "unknown",
             "is_verified_live": True,
-            "note": "O YouTube marcou este vídeo como transmissão ao vivo. Preço e restrição regional ainda precisam ser confirmados.",
+            "note": "YouTube currently marks this video as live. Access price and regional restrictions still need to be confirmed.",
         })
     return {"configured": True, "items": items}

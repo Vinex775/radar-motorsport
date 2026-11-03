@@ -1,15 +1,15 @@
-"""Descobre pistas de transmissões via Google News RSS.
+"""Discover broadcast leads through Google News RSS.
 
-Os resultados são leads editoriais, nunca confirmação de uma live ativa.
-A modalidade, plataforma e acesso são inferidos apenas quando o texto contém
-indícios explícitos; dúvidas permanecem como "unknown".
+Results are editorial leads, never confirmation of an active live stream.
+Discipline, platform, and access are inferred only when the text contains
+explicit evidence; uncertain values remain "unknown".
 """
 from __future__ import annotations
 
 import hashlib
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 from urllib.parse import quote_plus
@@ -18,8 +18,8 @@ from xml.etree import ElementTree
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-# Buscas deliberadamente amplas e agrupadas por famílias. A busca personalizada
-# da interface complementa esta varredura para séries locais/clubes muito pequenos.
+# Broad searches are grouped by motorsport families. Custom search
+# complements these scans for very small local series and clubs.
 QUERIES = [
     '("live stream" OR livestream OR "watch live") (Formula 1 OR Formula 2 OR Formula 3 OR Formula 4 OR "Formula Regional" OR "Formula E")',
     '("live stream" OR livestream OR "watch live") (karting OR kart OR "club karting" OR "national karting" OR "regional karting")',
@@ -42,12 +42,13 @@ QUERIES = [
     '(motorsport live OR karting live OR rally live OR speedway live) Denmark OR Danmark',
 ]
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.1.1; +https://github.com/)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.2.0; +https://github.com/)"}
 LIVE_TERMS = '("live stream" OR livestream OR "watch live" OR streaming OR "ao vivo" OR transmissão)'
 
-# Google News interpreta "rally" também como comício. Os termos negativos
-# ajudam na consulta, mas a validação local abaixo é a barreira definitiva.
+# Google News also interprets "rally" as a political event. Negative terms
+# help the query, but local validation below is the definitive safeguard.
 EXCLUDED_NEWS_TERMS = (
+    '-eleição -eleições -candidato -candidatos -senador -senado -governador -comício -comícios -política -político '
     '-election -elections -candidate -candidates -senator -senate -governor '
     '-voter -voters -GOP -Democrat -Democratic -Republican -politics '
     '-political -campaign -ballot -parliament -congress -mayor -politician '
@@ -62,7 +63,7 @@ POLITICAL_CONTEXT_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Sinais explícitos de esporte a motor, sem depender da palavra ambígua "race".
+# Explicit motorsport signals that do not rely on the ambiguous word "race".
 MOTORSPORT_CONTEXT_RE = re.compile(
     r"\b(?:motorsports?|motor sports?|racing|race cars?|racecars?|racing cars?|"
     r"kart(?:ing)?|formula\s?[1-4e]|f[1-4]|fia|wrc|erc|wec|elms|imsa|nascar|"
@@ -80,15 +81,75 @@ MOTORSPORT_CONTEXT_RE = re.compile(
 
 
 def is_motorsport_result(title: str, description: str = "") -> bool:
-    """Rejeita comícios/notícias políticas e exige contexto explícito de corrida.
+    """Reject political rallies/news and require explicit motorsport context.
 
-    "Rally" sozinho nunca é evidência suficiente: precisa vir acompanhado
-    de termos típicos de rally automobilístico (WRC, etapa, piloto, carro etc.).
+    The word "rally" alone is never enough; it must be accompanied
+    by terms typical of motorsport rallying (WRC, stages, drivers, cars, etc.).
     """
     text = f"{title or ''} {description or ''}"
     if POLITICAL_CONTEXT_RE.search(text):
         return False
     return bool(MOTORSPORT_CONTEXT_RE.search(text))
+
+
+REACTION_ONLY_RE = re.compile(
+    r"\b(?:react(?:ion)?|watchalong|watch along|second screen|live blog|live updates|"
+    r"text commentary|live commentary|commentary only|reaction stream|reação|reacao|"
+    r"comentários em tempo real|comentarios em tempo real)\b",
+    re.IGNORECASE,
+)
+WATCH_GUIDE_RE = re.compile(
+    r"\b(?:where to watch|how to watch|watch live|watch online|live stream|"
+    r"assistir ao vivo|onde assistir|link para assistir|transmissão ao vivo|transmissao ao vivo|"
+    r"streaming ao vivo|watch the race live)\b",
+    re.IGNORECASE,
+)
+FUTURE_EVENT_RE = re.compile(
+    r"\b(?:next weekend|next week|upcoming|this coming|tomorrow|próximo|proxima etapa|"
+    r"próxima etapa|next round|round \d+ preview|preview)\b",
+    re.IGNORECASE,
+)
+
+
+def is_reaction_or_commentary(title: str, description: str = "") -> bool:
+    """True when a result appears to be reaction/commentary rather than the race feed."""
+    text = f"{title or ''} {description or ''}"
+    if not REACTION_ONLY_RE.search(text):
+        return False
+    # Keep explicit official race-feed announcements even if they mention commentary.
+    official_feed = re.search(
+        r"\b(?:official race feed|full race broadcast|live race feed|official live broadcast)\b",
+        text,
+        re.IGNORECASE,
+    )
+    return not bool(official_feed)
+
+
+def is_stale_watch_guide(published: str | None, title: str, description: str = "", now=None) -> bool:
+    """Filter old watch-this-race guides; publication recency alone is not live status."""
+    if not published or not WATCH_GUIDE_RE.search(f"{title or ''} {description or ''}"):
+        return False
+    if FUTURE_EVENT_RE.search(f"{title or ''} {description or ''}"):
+        return False
+    try:
+        stamp = datetime.fromisoformat(published.replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=timezone.utc)
+        return current.astimezone(timezone.utc) - stamp.astimezone(timezone.utc) > timedelta(hours=36)
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
+def is_valid_discovery(title: str, description: str = "", published: str | None = None, now=None) -> bool:
+    """Return whether a news item is a plausible motorsport broadcast lead."""
+    return (
+        is_motorsport_result(title, description)
+        and not is_reaction_or_commentary(title, description)
+        and not is_stale_watch_guide(published, title, description, now=now)
+    )
 
 
 def _plain_text(value: str) -> str:
@@ -98,7 +159,7 @@ def _plain_text(value: str) -> str:
 
 
 def classify_access(text: str) -> str:
-    """Classifica somente pistas explícitas; não confunde 'free practice' com grátis."""
+    """Classify only explicit access claims; do not confuse "free practice" with free access."""
     value = text.lower()
     if re.search(
         r"pay[- ]?per[- ]?view|\bppv\b|purchase (the )?(race|event|pass)|buy (the )?(race|event)|"
@@ -143,17 +204,17 @@ def detect_platform(text: str) -> str:
     for pattern, name in patterns:
         if re.search(pattern, value):
             return name
-    return "Não identificada"
+    return "Unidentified"
 
 
 def detect_series(text: str) -> str:
     value = text.lower()
     mapping = [
-        (r"formula ?1|\bf1\b", "Fórmula 1"),
-        (r"formula ?2|\bf2\b", "Fórmula 2"),
-        (r"formula ?3|\bf3\b", "Fórmula 3"),
-        (r"formula ?e", "Fórmula E"),
-        (r"formula ?4|\bf4\b|formula regional|regional formula", "Fórmulas de base"),
+        (r"formula ?1|\bf1\b", "Formula 1"),
+        (r"formula ?2|\bf2\b", "Formula 2"),
+        (r"formula ?3|\bf3\b", "Formula 3"),
+        (r"formula ?e", "Formula E"),
+        (r"formula ?4|\bf4\b|formula regional|regional formula", "Junior formulas"),
         (r"formula student|formula sae", "Formula Student / SAE"),
         (r"fia world endurance championship|\bfia wec\b|\bwec\b", "FIA WEC"),
         (r"motogp|moto gp|moto2|moto3", "MotoGP / Moto2 / Moto3"),
@@ -161,29 +222,29 @@ def detect_series(text: str) -> str:
         (r"mxgp|motocross|supercross|supermotocross|\bsmx\b", "Motocross / Supercross"),
         (r"hard enduro|enduro motorcycle|enduro world", "Enduro / Hard Enduro"),
         (r"speedway|long track|ice speedway", "Speedway"),
-        (r"wec|world endurance|elms|imsa|24 hours of le mans|24h le mans", "Endurance / Protótipos"),
+        (r"wec|world endurance|elms|imsa|24 hours of le mans|24h le mans", "Endurance / Prototypes"),
         (r"gt world|gt3|gt4|gt world challenge|british gt|gt open", "GT / GT3 / GT4"),
-        (r"dtm|tcr|btcc|touring car|touring cars", "Turismo / TCR"),
-        (r"nascar|stock car|supercars championship|v8 supercars", "Stock Car / NASCAR"),
+        (r"dtm|tcr|btcc|touring car|touring cars", "Touring Cars / TCR"),
+        (r"nascar|stock car|supercars championship|v8 supercars", "Stock Cars / NASCAR"),
         (r"indycar|indy 500|indy nxt", "IndyCar"),
         (r"kart|karting|kartódromo|kartodromo", "Karting"),
         (r"rallycross|world rx|world rallycross|rally cross", "Rallycross"),
         (r"rally raid|dakar|baja|cross.country rally", "Rally Raid / Baja"),
         (r"rally|wrc|erc|rallye", "Rally"),
-        (r"drag racing|dragster|nhra|arrancada|drag strip", "Arrancada / Drag"),
-        (r"hill ?climb|hillclimb|bergrennen|subida de montanha", "Hillclimb / Subida de montanha"),
+        (r"drag racing|dragster|nhra|arrancada|drag strip", "Drag racing"),
+        (r"hill ?climb|hillclimb|bergrennen|subida de montanha", "Hillclimb"),
         (r"drift|formula drift", "Drift"),
         (r"autocross|autocrossing", "Autocross"),
-        (r"sprint car|midget|dirt late model|short.track racing|oval racing", "Ovais / Sprint Cars / Midgets"),
+        (r"sprint car|midget|dirt late model|short.track racing|oval racing", "Oval / Sprint Cars / Midgets"),
         (r"time attack|time trial", "Time Attack"),
-        (r"ice racing|ice racing car|snowmobile racing", "Gelo / Neve"),
+        (r"ice racing|ice racing car|snowmobile racing", "Ice / Snow racing"),
         (r"off.road|cross.country|trial(s)?", "Off-road / Trials"),
         (r"club racing|grassroots racing|amateur racing", "Club / Regional"),
     ]
     for pattern, name in mapping:
         if re.search(pattern, value):
             return name
-    return "Motorsport — categoria a identificar"
+    return "Motorsport — category to identify"
 
 
 def _parse_date(value: str) -> str | None:
@@ -199,7 +260,7 @@ def _parse_date(value: str) -> str | None:
 
 
 def locale_for_query(query: str) -> tuple[str, str, str]:
-    """Escolhe a edição do Google News a partir de país/idioma mencionado."""
+    """Choose a Google News edition based on the country/language in the query."""
     value = (query or "").lower()
     regional = [
         (r"suecia|suécia|sverige|sweden|swedish", ("sv-SE", "SE", "SE:sv")),
@@ -242,9 +303,10 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
         source_name = _plain_text(source_node.text if source_node is not None else "Google News")
         if not title or not link or not link.startswith(("http://", "https://")):
             continue
-        # Não basta a notícia ter sido retornada por uma busca com "rally":
-        # validamos título e resumo para evitar comícios e política.
-        if not is_motorsport_result(title, description):
+        # A result returned by a search for "rally" is not sufficient:
+        # validate its title and summary to avoid political rallies and politics.
+        # Exclude political noise, reaction-only pages, and stale watch guides.
+        if not is_valid_discovery(title, description, published):
             continue
         key = hashlib.sha256(link.encode("utf-8")).hexdigest()[:18]
         full_text = f"{title} {description}"
@@ -259,14 +321,14 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
             "platform": detect_platform(full_text),
             "access": classify_access(full_text),
             "is_verified_stream": False,
-            "note": "Pista encontrada em notícia. Abra a fonte para confirmar data, região, plataforma e acesso.",
+            "note": "News lead only. Open the original source to confirm the event date, region, platform, and access.",
         }
     ordered = sorted(results.values(), key=lambda item: item.get("published") or "", reverse=True)
     return ordered[:limit]
 
 
-def buscar_pistas(limit: int = 60) -> list[dict]:
-    """Faz uma varredura ampla, isolando falhas de cada família de modalidade."""
+def discover_broadcast_leads(limit: int = 60) -> list[dict]:
+    """Run broad discovery searches while isolating failures by motorsport family."""
     fetched: list[bytes] = []
     with ThreadPoolExecutor(max_workers=min(8, len(QUERIES))) as pool:
         futures = [pool.submit(_fetch_query, query) for query in QUERIES]
@@ -277,7 +339,7 @@ def buscar_pistas(limit: int = 60) -> list[dict]:
                 continue
 
     if not fetched:
-        raise OSError("Não foi possível consultar o RSS de notícias. Verifique a conexão com a internet.")
+        raise OSError("Could not query the news RSS feed. Check your internet connection.")
 
     merged: dict[str, dict] = {}
     for payload in fetched:
@@ -290,17 +352,17 @@ def buscar_pistas(limit: int = 60) -> list[dict]:
     return ordered[:limit]
 
 
-def buscar_pistas_personalizadas(query: str, limit: int = 25) -> list[dict]:
-    """Busca uma categoria/campeonato/região digitado pelo usuário no RSS."""
+def search_custom_discovery_leads(query: str, limit: int = 25) -> list[dict]:
+    """Search RSS for a user-entered discipline, championship, or region."""
     clean = re.sub(r"\s+", " ", (query or "")).strip()[:180]
     if len(clean) < 2:
-        raise ValueError("Digite pelo menos 2 caracteres para pesquisar.")
+        raise ValueError("Enter at least 2 characters to search.")
     payload = _fetch_query(f'({clean}) {LIVE_TERMS}')
     try:
         results = _parse_feed(payload, limit=max(1, min(limit, 40)))
     except ElementTree.ParseError as exc:
-        raise OSError("A fonte de notícias retornou um feed inválido.") from exc
-    # Marca a busca customizada na explicação sem sugerir validação oficial.
+        raise OSError("The news source returned an invalid feed.") from exc
+    # Explain that custom-search results are leads, not official verification.
     for item in results:
-        item["note"] = "Resultado de busca personalizada no Google News. É uma pista editorial, não uma live verificada. Confirme a fonte original."
+        item["note"] = "Custom Google News result. This is an editorial lead, not a verified live stream. Check the original source."
     return results

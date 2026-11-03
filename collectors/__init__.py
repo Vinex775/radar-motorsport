@@ -1,1 +1,1 @@
-"""Coletores de calendários e pistas de transmissão do Motorsport Radar."""
+"""Schedule collectors and motorsport broadcast-discovery sources."""
