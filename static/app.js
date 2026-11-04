@@ -1,10 +1,9 @@
-const state = { events: [], discoveries: [], sources: [], searchPresets: [], notificationPermission: false };
+const state = { events: [], discoveries: [], sources: [], searchPresets: [], notificationPermission: false, liveScanInProgress: false };
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value='') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
 const accessText = {free:'Free', subscription:'Subscription', ppv:'Pay-per-view', unknown:'Unknown'};
 const statusText = {live:'Scheduled window active', upcoming:'Upcoming', unknown:'Time unknown'};
 const leadStatusText = {historical_reference:'Historical reference', unverified_lead:'Unverified lead'};
-const GLOBAL_LIVE_QUERY = 'motorsport|racing|race|karting|rally|rallycross|rally raid|endurance|GT3|GT4|touring cars|stock cars|drift|drag racing|hillclimb|hill climb|speedway|motocross|supercross|enduro|superbike|motorcycle racing|sprint cars|autosuunnistus|rallisprint|ice racing|autocross|time attack|club racing|regional race';
 
 function safeUrl(value) {
   try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
@@ -26,10 +25,10 @@ function showToast(message, error=false) {
   window.clearTimeout(showToast.timer); showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 3600);
 }
 function setLoading(loading) {
-  const button = $('#refresh-button'); button.disabled = loading; button.innerHTML = loading ? '<span class="refresh-icon">↻</span> Searching...' : '<span class="refresh-icon">↻</span> Refresh radar';
+  const button = $('#refresh-button'); button.disabled = loading; button.innerHTML = loading ? '<span class="refresh-icon">↻</span> Scanning...' : '<span class="refresh-icon">↻</span> Refresh radar';
 }
 function renderStats(data) {
-  $('#stat-live').textContent = data.stats?.live ?? 0;
+  $('#stat-live').textContent = '—';
   $('#stat-upcoming').textContent = data.stats?.upcoming ?? 0;
   $('#stat-leads').textContent = data.stats?.leads ?? data.discoveries.length;
   $('#last-refresh').textContent = formatLastRefresh(data.last_refresh);
@@ -99,10 +98,17 @@ async function fetchDashboard() {
 async function refreshRadar() {
   setLoading(true);
   try {
-    const response = await fetch('/api/refresh', {method:'POST'}); const result = await response.json();
+    // Live broadcasts are the primary purpose of APEX: scan them first so a
+    // slower calendar/news refresh never delays the answer to "what is live now?".
+    const live = await scanLiveNow(false);
+    const response = await fetch('/api/refresh', {method:'POST'});
+    const result = await response.json();
     await fetchDashboard();
-    if (result.errors?.length) showToast(`Partial scan. ${result.errors.join(' | ')}`, true);
-    else showToast(`Radar refreshed: ${result.events_updated} events and ${result.discoveries_updated} new discovery leads.`);
+    // Dashboard rendering resets summary counters; repaint Live Now from the
+    // just-populated provider cache without spending additional API quota.
+    await scanLiveNow(false);
+    if (result.errors?.length) showToast(`Live scan complete (${live?.count ?? 0} active streams). Schedule/news warnings: ${result.errors.join(' | ')}`, true);
+    else showToast(`Radar refreshed: ${live?.count ?? 0} active broadcasts now, ${result.events_updated} scheduled events, ${result.discoveries_updated} discovery leads.`);
   } catch (error) { showToast(error.message || 'Refresh failed.', true); }
   finally { setLoading(false); }
 }
@@ -168,40 +174,73 @@ function openLiveSearch(target) {
   };
   const url = urls[target]; if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
-async function searchYoutubeLive(openPublicFallback = true) {
-  const term = currentSearchTerm();
-  const button = $('#youtube-search'); const original = button.textContent;
-  // Open the public search only after a direct user click; browsers block delayed popups.
-  const fallbackTab = openPublicFallback ? window.open('about:blank', '_blank') : null;
-  button.disabled = true; button.textContent = 'Searching...';
+function renderLiveNow(data) {
+  const target = $('#platform-results');
+  const items = data.items || [];
+  const platforms = data.platforms || {};
+  const platformSummary = Object.entries(platforms).map(([name, status]) => {
+    const stateLabel = status.ok ? 'CONNECTED' : status.configured ? 'ERROR' : 'NOT CONFIGURED';
+    const stateClass = status.ok ? 'connected' : status.configured ? 'failed' : 'disabled';
+    const cached = status.cached ? ' · cached' : '';
+    return `<span class="platform-source ${stateClass}" title="${escapeHtml(status.message || stateLabel)}"><strong>${escapeHtml(name)}</strong> ${escapeHtml(stateLabel)} · ${Number(status.count || 0)} found${cached}</span>`;
+  }).join('');
+
+  $('#stat-live').textContent = Number(data.count ?? items.length);
+  $('#live-count').textContent = Number(data.count ?? items.length);
+
+  const sourceHtml = platformSummary ? `<div class="platform-source-list">${platformSummary}</div>` : '';
+  const heading = `<div class="platform-results-heading">${Number(data.count ?? items.length)} ACTIVE BROADCAST(S) FOUND</div>${sourceHtml}`;
+  const explanation = `<p class="data-note">${escapeHtml(data.note || 'Platform APIs report these channels as live. Open the stream to verify the actual race feed and access conditions.')}</p>`;
+
+  if (!items.length) {
+    const configured = Number(data.configured_sources || 0);
+    const hasErrors = Object.values(platforms).some(status => status.configured && !status.ok);
+    const emptyMessage = hasErrors
+      ? 'One or more connected platforms returned an error. Check the provider status above and verify the API credentials in your .env file.'
+      : configured
+        ? 'No matching motorsport streams are being reported live right now. Try another scan shortly; small local streams may not be indexed by platform search.'
+        : 'No live platform API is configured yet. Add your API credentials to the .env file to enable automatic discovery across YouTube, Twitch, and Kick.';
+    target.innerHTML = `${heading}${explanation}<div class="platform-empty">${escapeHtml(emptyMessage)}</div>`;
+  } else {
+    const rows = items.map(item => {
+      const meta = [item.platform, item.category || 'Motorsport', item.started_at ? `Started ${formatDate(item.started_at)}` : '', item.viewers ? `${Number(item.viewers).toLocaleString('en-US')} viewers` : ''].filter(Boolean).join(' · ');
+      const link = safeUrl(item.url);
+      return `<article class="platform-result live-result"><div class="live-result-copy"><strong>${escapeHtml(item.title || 'Live motorsport stream')}</strong><span>${escapeHtml(item.channel || 'Unknown channel')} · ${escapeHtml(meta)}</span></div><span class="status-tag live">LIVE NOW · API</span><span class="access-tag unknown">Access unknown</span>${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">Watch ↗</a>` : ''}</article>`;
+    }).join('');
+    target.innerHTML = `${heading}${explanation}${rows}`;
+  }
+
+  const scannedAt = data.scanned_at ? new Date(Number(data.scanned_at) * 1000) : new Date();
+  $('#last-refresh').textContent = formatLastRefresh(scannedAt.toISOString());
+  $('#live-last-scan').textContent = `Last live scan: ${new Intl.DateTimeFormat('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(scannedAt)} · Auto-check every 5 minutes · YouTube cache: 20 minutes to respect its daily API limit.`;
+}
+
+async function scanLiveNow(showToastOnComplete = true) {
+  if (state.liveScanInProgress) return null;
+  state.liveScanInProgress = true;
+  const button = $('#scan-live-button');
+  const original = button?.textContent || 'Scan all platforms';
+  if (button) { button.disabled = true; button.textContent = 'Scanning platforms...'; }
   try {
+    const term = currentSearchTerm();
     const response = await fetch(`/api/live-now?q=${encodeURIComponent(term)}`);
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'YouTube search failed.');
-    if (!data.configured) {
-      const target = $('#platform-results');
-      target.innerHTML = '<div class="platform-empty">For API-verified Live Now results, configure YOUTUBE_API_KEY. The button can also open YouTube’s public Live-filtered search.</div>';
-      if (openPublicFallback) {
-        showToast('YouTube API is not configured. Opening public Live-filtered search; results are not API-verified.');
-        const baseQuery = term.toLowerCase() === 'motorsport' ? GLOBAL_LIVE_QUERY : term;
-        const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(`${baseQuery} live`)}&sp=EgJAAQ%253D%253D`;
-        if (fallbackTab) fallbackTab.location.href = fallbackUrl;
-        else showToast('The browser blocked the new tab. Allow pop-ups to open search.', true);
-      }
-      return;
+    if (!response.ok) throw new Error(data.error || 'Live scan failed.');
+    renderLiveNow(data);
+    if (showToastOnComplete) {
+      if (data.count) showToast(`Found ${data.count} active broadcasts across connected platforms.`);
+      else if (!data.configured_sources) showToast('No live platform APIs configured yet. See .env.example and README.');
+      else showToast('No matching motorsport streams are live right now.');
     }
-    if (fallbackTab) fallbackTab.close();
-    const target = $('#platform-results');
-    if (!data.items.length) {
-      target.innerHTML = '<div class="platform-empty">YouTube returned no matching videos currently marked LIVE. Try a more specific category or region.</div>';
-      return;
-    }
-    target.innerHTML = `<div class="platform-results-heading">${data.items.length} VIDEO(S) CURRENTLY MARKED LIVE BY YOUTUBE</div><p class="data-note">These are live according to YouTube's API, not independently verified as an uninterrupted race feed. Price and regional availability are unknown.</p>` + data.items.map(item => `<article class="platform-result"><div><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.channel)}</span></div><span class="status-tag live">LIVE NOW · API</span><span class="access-tag unknown">Access unknown</span><a href="${escapeHtml(safeUrl(item.url))}" target="_blank" rel="noopener noreferrer">Watch ↗</a></article>`).join('');
+    return data;
   } catch (error) {
-    if (fallbackTab) fallbackTab.close();
-    showToast(error.message || 'Error searching YouTube.', true);
+    $('#platform-results').innerHTML = `<div class="platform-empty">${escapeHtml(error.message || 'Could not scan live platforms.')}</div>`;
+    if (showToastOnComplete) showToast(error.message || 'Live scan failed.', true);
+    return null;
+  } finally {
+    state.liveScanInProgress = false;
+    if (button) { button.disabled = false; button.textContent = original; }
   }
-  finally { button.disabled = false; button.textContent = original; }
 }
 
 async function searchNewsRadar() {
@@ -232,9 +271,11 @@ function applySearchPreset() {
 
 $('#news-search').addEventListener('click', searchNewsRadar);
 $('#category-preset').addEventListener('change', applySearchPreset);
-$('#youtube-search').addEventListener('click', searchYoutubeLive);
+$('#youtube-search').addEventListener('click', () => openLiveSearch('youtube'));
+$('#scan-live-button').addEventListener('click', () => scanLiveNow(true));
 $('#twitch-search').addEventListener('click', () => openLiveSearch('twitch'));
 $('#web-search').addEventListener('click', () => openLiveSearch('web'));
 $('#local-clock').textContent = `LOCAL TIME · ${new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
-fetchDashboard().then(() => searchYoutubeLive(false)).catch(error => showToast(error.message, true));
+fetchDashboard().then(() => scanLiveNow(false)).catch(error => showToast(error.message, true));
 window.setInterval(checkUpcomingAlerts, 60_000);
+window.setInterval(() => scanLiveNow(false), 5 * 60_000);

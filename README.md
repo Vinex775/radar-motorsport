@@ -12,8 +12,8 @@ APEX is a discovery aggregator. It points users to calendars, news, channels, an
 - Broad discovery searches across formula racing, karting, rally and rally raid, GT/endurance, touring cars, stock cars, motorcycles, motocross, drag racing, drifting, hillclimb, speedway, oval racing, and regional series.
 - Custom search for any championship, country, circuit, or obscure series using Google News RSS, with regional editions selected where possible.
 - Search shortcuts for 25+ motorsport families and regions.
-- Dedicated **Live Now** scan using the YouTube Data API `eventType=live` filter when configured.
-- Broad motorsport live-search terms covering racing, karting, rally, endurance, GT, touring cars, drift, drag racing, hillclimb, speedway, motocross, and motorcycle racing.
+- Dedicated **Live Now** scan across YouTube, Twitch, and Kick APIs; all configured providers are queried concurrently.
+- Broad multilingual motorsport live-search terms covering major series and grassroots disciplines such as autosuunnistus, folkrace, rallisprint, autoslalom, tractor pulling, and short-track racing.
 - Historical broadcast references are retained and labelled; old articles are never presented as proof of a current live stream.
 - Reaction/watch-along results are filtered from race-feed candidates.
 - Official watch-source directory.
@@ -64,20 +64,65 @@ Then open <http://127.0.0.1:5000>.
 
 APEX searches in multiple languages, but no search engine indexes every local club, federation, or broadcast. Some events will be missed; some results will require manual verification.
 
-## YouTube Live API (optional)
+## Live platform connectors (optional)
 
-To list videos that YouTube currently marks as live, create an API key in the [Google Cloud Console](https://console.cloud.google.com/) and enable the YouTube Data API v3. Set the `YOUTUBE_API_KEY` environment variable before starting APEX.
+The **Live Now** scanner queries platform APIs for broadcasts that are active at scan time. It does not use calendars, news articles, or future sessions as evidence that a stream is live.
 
-PowerShell example:
+APEX currently supports three API-backed connectors:
 
-```powershell
-$env:YOUTUBE_API_KEY = "YOUR_API_KEY"
-py main.py
+- **YouTube:** `search.list` with `eventType=live`, followed by `videos.list` to enrich results with start time and concurrent viewers when available.
+- **Twitch:** category discovery plus Helix `Get Streams`, which returns active streams for those categories.
+- **Kick:** the public API's active livestream endpoint, filtered to motorsport-related categories.
+
+The connectors are independent. Configure one, two, or all three; an unavailable provider does not stop the others.
+
+### Configure credentials
+
+1. Copy `.env.example` to `.env` in the APEX root folder.
+2. Add credentials for the providers you want to use.
+3. Save the file and restart APEX.
+
+**YouTube**
+
+Create an API key in the [Google Cloud Console](https://console.cloud.google.com/) and enable [YouTube Data API v3](https://developers.google.com/youtube/v3). Add it as `YOUTUBE_API_KEY`.
+
+**Twitch**
+
+Create an application in the [Twitch Developer Console](https://dev.twitch.tv/console/apps) and add its Client ID and Client Secret as `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`. APEX uses the app access-token flow for public stream/category data.
+
+**Kick**
+
+Create an application in the [Kick Developer Portal](https://dev.kick.com) and add its Client ID and Client Secret as `KICK_CLIENT_ID` and `KICK_CLIENT_SECRET`. Kick requires an app access token for public API data.
+
+Example `.env`:
+
+```dotenv
+YOUTUBE_API_KEY=your_youtube_key
+TWITCH_CLIENT_ID=your_twitch_client_id
+TWITCH_CLIENT_SECRET=your_twitch_client_secret
+KICK_CLIENT_ID=your_kick_client_id
+KICK_CLIENT_SECRET=your_kick_client_secret
 ```
 
-The key is read from the environment and is not stored in source code or SQLite. **Never commit API keys, tokens, cookies, or `.env` files.** Without a key, the Live Now button opens YouTube's public Live-filtered search instead. Those public results are not API-verified inside APEX.
+The `.env` file is ignored by Git. **Never commit real API keys, client secrets, access tokens, cookies, or local databases.**
 
-YouTube's `eventType=live` is evidence that YouTube classifies a video as live; it does not prove that the channel is official, that the video contains the race feed rather than reaction/commentary, or that access is unrestricted in every country.
+### Scan frequency and API limits
+
+- APEX checks Twitch and Kick every 5 minutes while the dashboard is open. The provider calls run concurrently, so one slow platform does not hold up the others.
+- YouTube results are cached for 20 minutes. YouTube's `search.list` method has a default limit of 100 calls per day, so APEX uses one broad multilingual OR query per cache interval instead of spending quota on dozens of separate searches.
+- A manual scan uses the same cache windows; it does not bypass provider limits.
+
+YouTube documents `eventType=live` as returning active broadcasts only. Twitch documents `Get Streams` as returning channels that are currently broadcasting. Kick's v2 livestream endpoint is documented as returning active livestreams. These signals confirm that the platform reports a channel as live; they do **not** prove that the stream is the official race feed, nor do they establish price or regional rights.
+
+Official API references:
+
+- [YouTube Search: list](https://developers.google.com/youtube/data/reference/rest/v3/search/list)
+- [YouTube quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost)
+- [Twitch API Reference — Get Streams / Search Categories](https://dev.twitch.tv/docs/api/reference)
+- [Kick API — Livestreams](https://github.com/KickEngineering/KickDevDocs/blob/main/apis/livestreams.md)
+- [Kick OAuth 2.1 — App Access Token](https://github.com/KickEngineering/KickDevDocs/blob/main/getting-started/generating-tokens-oauth2-flow.md)
+
+Without API credentials, APEX can still open public platform searches, but those results are not independently verified by APEX and are not counted as Live Now.
 
 ## How access labels work
 
@@ -100,7 +145,7 @@ Please report false positives with the source URL, result title, and why it is m
 - `app.py`: HTTP server and API routes
 - `radar.py`: collector orchestration and dashboard data
 - `db.py`: local SQLite persistence
-- `collectors/`: schedule, news discovery, and YouTube collectors
+- `collectors/`: schedule/news discovery plus YouTube, Twitch, and Kick live connectors
 - `data/search_presets.json`: discovery shortcuts
 - `data/watch_sources.json`: official watch-source directory
 - `templates/index.html`: dashboard markup
@@ -129,11 +174,11 @@ Do not commit API keys, tokens, cookies, personal data, or local database files.
 ## Current limitations
 
 - There is no single public API containing every motorsport event and worldwide broadcast right.
-- DTM is the only structured automatic schedule collector in this release. Other series are discovered through news, YouTube, official directories, or manual entry.
+- DTM is currently the only structured automatic schedule collector. Other series are discovered through live platform APIs, news, official directories, or manual entry.
 - Google News RSS discovers articles and announcements; it does not inspect a video player or guarantee a current live feed.
-- Only videos returned by YouTube with `eventType=live` are labelled as currently live by the YouTube API collector. APEX still cannot guarantee that the video is the official race feed.
+- Only platform API results that explicitly identify a current broadcast are labelled Live Now. APEX still cannot guarantee that the video is the official race feed.
 - A schedule window means only that the published session time overlaps the current time; it is not a live-video verification.
-- A truly exhaustive worldwide scan across every streaming platform is not technically possible with one public API. Additional platform integrations and regional/community collectors are needed for broader coverage.
+- A truly exhaustive worldwide scan across every streaming platform is not technically possible with the current public APIs. Twitch discovery depends on platform categories, Kick discovery is capped at ten API pages per scan, and YouTube search is constrained by its daily quota and indexing. Regional/community collectors and user-submitted sources are still needed for broader coverage.
 - Broadcast rights change by country, season, event, and session. Official links can change without notice.
 - The DTM collector uses an undocumented public endpoint and may need maintenance if the provider changes it.
 

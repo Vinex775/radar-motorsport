@@ -11,7 +11,12 @@ from urllib.parse import parse_qs, urlparse
 
 import db
 import radar
-from collectors.youtube import search_live_videos as search_live_videos_youtube
+from config import load_environment
+
+# Load local API credentials before importing platform collectors.
+load_environment()
+
+from collectors.live_now import search_all_live_streams
 from collectors.discovery import search_custom_discovery_leads
 
 ROOT = Path(__file__).resolve().parent
@@ -75,7 +80,7 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.3.0"
+    server_version = "APEX-Motorsport-Radar/1.4.1"
 
     def log_message(self, format: str, *args) -> None:
         # Keep the terminal quiet except for HTTP errors.
@@ -123,7 +128,7 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             self._json(200, radar.dashboard_data())
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.3.0"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.4.1"})
         elif path == "/api/sources":
             self._json(200, {"sources": radar.load_watch_sources()})
         elif path == "/api/discover-search":
@@ -139,13 +144,11 @@ class RadarHandler(BaseHTTPRequestHandler):
             except OSError as exc:
                 self._json(502, {"error": str(exc)})
         elif path in {"/api/youtube-live", "/api/live-now"}:
-            query = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip()
+            query = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip() or "motorsport"
             try:
-                result = search_live_videos_youtube(query or "motorsport")
-                result["mode"] = "live_now"
-                self._json(200, result)
+                self._json(200, search_all_live_streams(query))
             except RuntimeError as exc:
-                self._json(502, {"configured": True, "mode": "live_now", "error": str(exc)})
+                self._json(502, {"mode": "live_now", "error": str(exc), "items": [], "platforms": {}})
         else:
             self._json(404, {"error": "Route not found."})
 

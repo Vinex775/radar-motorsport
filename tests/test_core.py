@@ -9,6 +9,8 @@ import db
 from app import _manual_event
 from collectors.discovery import classify_access, detect_platform, detect_series, search_custom_discovery_leads, locale_for_query, is_motorsport_result, is_reaction_or_commentary, is_stale_watch_guide, EXCLUDED_NEWS_TERMS
 from collectors.youtube import search_live_videos, GLOBAL_LIVE_QUERY
+from collectors import twitch, kick, live_now
+from config import load_environment
 from radar import event_status, load_watch_sources, load_search_presets
 
 
@@ -35,6 +37,14 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(classify_access("All rounds are LIVE and FREE on the official channel"), "free")
         self.assertEqual(classify_access("Free practice begins at 10:00"), "unknown")
         self.assertEqual(classify_access("Acesso pago por evento"), "ppv")
+
+    def test_rejects_non_motorsport_racing(self):
+        self.assertFalse(is_motorsport_result("Horse racing live from Ascot"))
+        self.assertFalse(is_motorsport_result("Greyhound racing live"))
+        self.assertTrue(is_motorsport_result("Autosuunnistus SM live stream"))
+        self.assertTrue(is_motorsport_result("Live Formula Drift race"))
+        self.assertTrue(is_motorsport_result("Folkrace live from Sweden"))
+        self.assertTrue(is_motorsport_result("Local tractor pulling championship"))
 
     def test_rejects_political_rallies(self):
         political_titles = [
@@ -181,11 +191,19 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(len(result["items"]), 1)
         self.assertTrue(result["items"][0]["is_verified_live"])
         self.assertEqual(result["items"][0]["status"], "live_now")
-        query = parse_qs(urlparse(mocked.call_args.args[0].full_url).query)["q"][0]
+        query = parse_qs(urlparse(mocked.call_args_list[0].args[0].full_url).query)["q"][0]
         self.assertIn("karting", query)
         self.assertIn("motocross", query)
         self.assertIn("speedway", query)
+        self.assertIn("autosuunnistus", query)
+        self.assertIn("automobilismo", query)
+        self.assertIn("folkrace", query)
+        self.assertIn("tractor pulling", query)
         self.assertIn("|", query)  # OR terms broaden the global scan across disciplines.
+        self.assertLessEqual(len(query), 500)
+        params = parse_qs(urlparse(mocked.call_args_list[0].args[0].full_url).query)
+        self.assertEqual(params["eventType"], ["live"])
+        self.assertEqual(params["maxResults"], ["50"])
         self.assertEqual(result["items"][0]["url"], "https://www.youtube.com/watch?v=race123")
 
     def test_youtube_api_optional_key(self):
@@ -193,6 +211,125 @@ class DiscoveryTests(unittest.TestCase):
             result = search_live_videos("Swedish karting")
         self.assertFalse(result["configured"])
         self.assertEqual(result["items"], [])
+
+
+class MultiPlatformLiveTests(unittest.TestCase):
+    def setUp(self):
+        live_now._CACHE.clear()
+        twitch._TOKEN = None
+        twitch._TOKEN_EXPIRES = 0
+        twitch._TOKEN_CLIENT_ID = None
+        twitch._CATEGORY_CACHE.clear()
+        kick._TOKEN = None
+        kick._TOKEN_EXPIRES = 0
+        kick._TOKEN_CREDENTIALS = None
+
+    def test_twitch_and_kick_accept_short_motorsport_category_labels(self):
+        self.assertTrue(twitch._motorsport_category("Rally"))
+        self.assertTrue(twitch._motorsport_category("Folkrace"))
+        self.assertTrue(kick._is_motorsport("Rally"))
+        self.assertTrue(kick._is_motorsport("Autosuunnistus"))
+
+    def test_twitch_connector_returns_active_racing_stream(self):
+        payload = {"data": [{
+            "id": "stream-1", "user_login": "localrace", "user_name": "Local Race TV",
+            "game_name": "Motorsports", "title": "Regional karting championship — race 2",
+            "viewer_count": 83, "started_at": "2026-11-03T14:00:00Z", "language": "en",
+            "tags": ["Racing"],
+            "thumbnail_url": "https://example.com/{width}x{height}.jpg",
+        }], "pagination": {}}
+        with patch.dict(os.environ, {"TWITCH_CLIENT_ID": "client", "TWITCH_CLIENT_SECRET": "secret"}), \
+             patch("collectors.twitch._app_token", return_value="token"), \
+             patch("collectors.twitch._find_categories", return_value=[{"id": "22", "name": "Motorsports"}]), \
+             patch("collectors.twitch._api_get", return_value=payload):
+            result = twitch.search_live_streams()
+        self.assertTrue(result["configured"])
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["items"][0]["platform"], "Twitch")
+        self.assertTrue(result["items"][0]["is_verified_live"])
+        self.assertEqual(result["items"][0]["viewers"], 83)
+
+    def test_kick_connector_returns_active_local_motorsport_stream(self):
+        categories = {"data": [{"id": 42, "name": "Motorsports"}]}
+        streams = {"data": [{
+            "id": "kick-live-1", "title": "Autosuunnistus SM — live coverage",
+            "category": {"id": 42, "name": "Motorsports"},
+            "broadcaster_user": {"id": 5, "username": "finnishrace"},
+            "channel": {"slug": "finnishrace"}, "viewer_count": 27,
+            "started_at": "2026-11-03T13:10:00Z", "language_code": "fi",
+            "tags": ["Motorsport"], "thumbnail": "https://example.com/live.jpg",
+        }]}
+        def fake_kick_api(path, params, token):
+            return categories if path.endswith("/categories") else streams
+
+        with patch.dict(os.environ, {"KICK_CLIENT_ID": "client", "KICK_CLIENT_SECRET": "secret"}), \
+             patch("collectors.kick._app_token", return_value="token"), \
+             patch("collectors.kick._api_get", side_effect=fake_kick_api):
+            result = kick.search_live_streams()
+        self.assertTrue(result["configured"])
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["items"][0]["platform"], "Kick")
+        self.assertEqual(result["items"][0]["url"], "https://kick.com/finnishrace")
+
+    def test_kick_connector_follows_cursor_and_prioritizes_newer_streams(self):
+        categories = {"data": [{"id": 42, "name": "Motorsports"}]}
+        oldest = {"data": [{
+            "id": "old", "title": "Old Swedish karting race", "category": {"id": 42, "name": "Motorsports"},
+            "broadcaster_user": {"id": 1, "username": "oldrace"}, "channel": {"slug": "oldrace"},
+            "viewer_count": 4, "started_at": "2026-11-03T08:00:00Z", "language_code": "sv", "tags": [],
+        }], "pagination": {"next_cursor": "next-page-cursor"}}
+        newest = {"data": [{
+            "id": "new", "title": "New Finnish autosuunnistus race", "category": {"id": 42, "name": "Motorsports"},
+            "broadcaster_user": {"id": 2, "username": "newrace"}, "channel": {"slug": "newrace"},
+            "viewer_count": 25, "started_at": "2026-11-03T14:00:00Z", "language_code": "fi", "tags": [],
+        }], "pagination": {"next_cursor": ""}}
+        def fake_kick_api(path, params, token):
+            if path.endswith("/categories"):
+                return categories
+            if ("cursor", "next-page-cursor") in params:
+                return newest
+            return oldest
+
+        with patch.dict(os.environ, {"KICK_CLIENT_ID": "client", "KICK_CLIENT_SECRET": "secret"}), \
+             patch("collectors.kick._app_token", return_value="token"), \
+             patch("collectors.kick._api_get", side_effect=fake_kick_api) as api:
+            result = kick.search_live_streams()
+        self.assertEqual([item["channel"] for item in result["items"]], ["newrace", "oldrace"])
+        stream_calls = [call for call in api.call_args_list if call.args[0].endswith("/livestreams")]
+        self.assertEqual(len(stream_calls), 2)
+        self.assertIn(("cursor", "next-page-cursor"), stream_calls[-1].args[1])
+
+    def test_unconfigured_platforms_do_not_fail_global_scan(self):
+        with patch.dict(os.environ, {}, clear=True):
+            result = live_now.search_all_live_streams("motorsport")
+        self.assertEqual(result["count"], 0)
+        self.assertEqual(result["configured_sources"], 0)
+        self.assertEqual(set(result["platforms"]), {"YouTube", "Twitch", "Kick"})
+
+    def test_global_scan_merges_all_platforms_and_uses_cache(self):
+        youtube_result = {"configured": True, "items": [{"url": "https://youtube.com/watch?v=1", "title": "Kart race", "viewers": 10}]}
+        twitch_result = {"configured": True, "items": [{"url": "https://twitch.tv/race", "title": "Rally race", "viewers": 50}]}
+        kick_result = {"configured": True, "items": [{"url": "https://kick.com/race", "title": "Club race", "viewers": 20}]}
+        with patch("collectors.live_now.search_live_videos", return_value=youtube_result) as yt, \
+             patch("collectors.live_now.search_twitch", return_value=twitch_result) as tw, \
+             patch("collectors.live_now.search_kick", return_value=kick_result) as kk:
+            first = live_now.search_all_live_streams("motorsport")
+            second = live_now.search_all_live_streams("motorsport")
+        self.assertEqual(first["count"], 3)
+        self.assertEqual(first["items"][0]["platform"], "Twitch")
+        self.assertTrue(second["platforms"]["YouTube"]["cached"])
+        yt.assert_called_once(); tw.assert_called_once(); kk.assert_called_once()
+
+    def test_dotenv_loads_credentials_without_overriding_existing_values(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / ".env"
+            env_file.write_text('YOUTUBE_API_KEY="from-file"\nTWITCH_CLIENT_ID=from-file-id\n', encoding="utf-8")
+            with patch.dict(os.environ, {"YOUTUBE_API_KEY": "already-set"}, clear=True):
+                load_environment(env_file)
+                self.assertEqual(os.environ["YOUTUBE_API_KEY"], "already-set")
+                self.assertEqual(os.environ["TWITCH_CLIENT_ID"], "from-file-id")
 
 
 class CatalogTests(unittest.TestCase):
@@ -263,6 +400,19 @@ class EventTests(unittest.TestCase):
                 with db.connect() as conn:
                     columns = {row[1] for row in conn.execute("PRAGMA table_info(discoveries)")}
                 self.assertIn("lead_status", columns)
+            finally:
+                db.DB_PATH = old_path
+
+    def test_database_connection_is_closed_after_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_path = db.DB_PATH
+            db.DB_PATH = Path(directory) / "radar.sqlite3"
+            try:
+                with db.connect() as conn:
+                    db.init_db()
+                    connection = conn
+                with self.assertRaises(Exception):
+                    connection.execute("SELECT 1")
             finally:
                 db.DB_PATH = old_path
 

@@ -42,7 +42,7 @@ QUERIES = [
     '(motorsport live OR karting live OR rally live OR speedway live) Denmark OR Danmark',
 ]
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.3.0; +https://github.com/)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.4.1; +https://github.com/)"}
 LIVE_TERMS = '("live stream" OR livestream OR "watch live" OR streaming OR "ao vivo" OR transmissão)'
 
 # Google News also interprets "rally" as a political event. Negative terms
@@ -53,6 +53,13 @@ EXCLUDED_NEWS_TERMS = (
     '-voter -voters -GOP -Democrat -Democratic -Republican -politics '
     '-political -campaign -ballot -parliament -congress -mayor -politician '
     '-politicians -electionday'
+)
+
+NON_MOTORSPORT_RACING_RE = re.compile(
+    r"\b(?:horse racing|horse race|thoroughbred|greyhound racing|dog racing|"
+    r"harness racing|flat racing|steeplechase|road cycling|track cycling|"
+    r"cycling race|marathon running|track and field|athletics championship)\b",
+    re.IGNORECASE,
 )
 
 POLITICAL_CONTEXT_RE = re.compile(
@@ -76,7 +83,12 @@ MOTORSPORT_CONTEXT_RE = re.compile(
     r"parc ferme|paddock|pit lane|pit stop|race weekend|race circuit|race track|"
     r"endurance racing|sprint car|midget racing|dirt late model|time attack|"
     r"autocross|off[- ]road racing|autosuunnistus|rallisprint|rally sprint|"
-    r"moottoriurheilu|kilpa-autoilu|rallye championship)\b",
+    r"moottoriurheilu|kilpa-autoilu|rallye championship|sim racing|simracing|"
+    r"iracing|assetto corsa|gran turismo|forza motorsport|automobilista|"
+    r"rfactor|race room|raceroom|autocrossing|automobilismo|arrancada|"
+    r"corrida de carros|automovilismo|autourheilu|rennen|bergrennen|"
+    r"course auto|course de cote|folkrace|auto.?slalom|tractor pulling|"
+    r"banger racing|short track racing)\b",
     re.IGNORECASE,
 )
 
@@ -88,7 +100,7 @@ def is_motorsport_result(title: str, description: str = "") -> bool:
     by terms typical of motorsport rallying (WRC, stages, drivers, cars, etc.).
     """
     text = f"{title or ''} {description or ''}"
-    if POLITICAL_CONTEXT_RE.search(text):
+    if POLITICAL_CONTEXT_RE.search(text) or NON_MOTORSPORT_RACING_RE.search(text):
         return False
     return bool(MOTORSPORT_CONTEXT_RE.search(text))
 
@@ -249,7 +261,15 @@ def detect_series(text: str) -> str:
         (r"drag racing|dragster|nhra|arrancada|drag strip", "Drag racing"),
         (r"hill ?climb|hillclimb|bergrennen|subida de montanha", "Hillclimb"),
         (r"drift|formula drift", "Drift"),
-        (r"autocross|autocrossing", "Autocross"),
+        (r"autocross|autocrossing|autoslalom|auto slalom", "Autocross / Autoslalom"),
+        (r"folkrace", "Folkrace"),
+        (r"rallysprint|rally sprint", "Rallysprint"),
+        (r"tractor pulling|tractor pull", "Tractor pulling"),
+        (r"banger racing|short track racing", "Stock car / Short track"),
+        (r"folkrace", "Folkrace"),
+        (r"rallysprint|rally sprint", "Rallysprint"),
+        (r"tractor pulling|tractor pull", "Tractor pulling"),
+        (r"banger racing|short track racing", "Stock car / Short track"),
         (r"sprint car|midget|dirt late model|short.track racing|oval racing", "Oval / Sprint Cars / Midgets"),
         (r"time attack|time trial", "Time Attack"),
         (r"ice racing|ice racing car|snowmobile racing", "Ice / Snow racing"),
