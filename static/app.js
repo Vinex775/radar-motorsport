@@ -2,8 +2,8 @@ const state = { events: [], discoveries: [], sources: [], searchPresets: [], not
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value='') => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
 const accessText = {free:'Free', subscription:'Subscription', ppv:'Pay-per-view', unknown:'Unknown'};
-const statusText = {live:'Scheduled window active', upcoming:'Upcoming', unknown:'Time unknown'};
-const leadStatusText = {historical_reference:'Historical reference', unverified_lead:'Unverified lead'};
+const statusText = {upcoming:'Upcoming'};
+const leadStatusText = {upcoming_lead:'Upcoming motorsport lead'};
 
 function safeUrl(value) {
   try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) ? url.href : ''; }
@@ -13,12 +13,39 @@ function formatDate(value) {
   if (!value) return 'Time not provided';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Time not provided';
-  return new Intl.DateTimeFormat('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZoneName:'short' }).format(date).replace(',', ' ·');
+  return new Intl.DateTimeFormat('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', timeZoneName:'short' }).format(date).replace(',', ' ·');
+}
+function formatEventSchedule(event) {
+  const start = event.start_utc ? new Date(event.start_utc) : null;
+  const end = event.end_utc ? new Date(event.end_utc) : null;
+  if (!start || Number.isNaN(start.getTime())) return 'Date to be confirmed';
+
+  const dateOnly = (date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  const dateLabel = (date) => new Intl.DateTimeFormat('en-GB', {
+    day:'2-digit', month:'short', year:'numeric'
+  }).format(date);
+
+  // A weekend-level API record often carries an artificial evening timestamp.
+  // Show only the published date range, never imply that this is a session time.
+  const isWeekend = /weekend|race weekend/i.test(String(event.kind || ''));
+  if (end && !Number.isNaN(end.getTime()) && (isWeekend || dateOnly(start) !== dateOnly(end))) {
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const sameMonth = sameYear && start.getMonth() === end.getMonth();
+    const left = sameMonth
+      ? new Intl.DateTimeFormat('en-GB', {day:'2-digit'}).format(start)
+      : new Intl.DateTimeFormat('en-GB', {day:'2-digit', month:'short'}).format(start);
+    const right = sameMonth
+      ? new Intl.DateTimeFormat('en-GB', {day:'2-digit'}).format(end)
+      : dateLabel(end);
+    const monthAndYear = new Intl.DateTimeFormat('en-GB', {month:'short', year:'numeric'}).format(end);
+    return sameMonth ? `${left}–${right} ${monthAndYear}` : `${left} – ${right}`;
+  }
+  return formatDate(event.start_utc);
 }
 function formatLastRefresh(value) {
   if (!value) return 'Not run yet';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? 'Unavailable' : new Intl.DateTimeFormat('en-GB', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).format(d);
+  return Number.isNaN(d.getTime()) ? 'Unavailable' : new Intl.DateTimeFormat('en-GB', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}).format(d);
 }
 function showToast(message, error=false) {
   const toast = $('#toast'); toast.textContent = message; toast.classList.toggle('error', error); toast.classList.add('show');
@@ -45,33 +72,32 @@ function renderEvents() {
   });
   const grid = $('#event-grid');
   if (!filtered.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⌁</div><strong>${state.events.length ? 'No events match these filters.' : 'No events in APEX yet.'}</strong><p>${state.events.length ? 'Try removing a filter or searching for another term.' : 'Refresh the collectors or add an event manually.'}</p></div>`;
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⌁</div><strong>${state.events.length ? 'No events match these filters.' : 'No upcoming events found yet.'}</strong><p>${state.events.length ? 'Try removing a filter or searching for another term.' : 'Refresh the schedule collectors or add a future event manually.'}</p></div>`;
     return;
   }
   grid.innerHTML = filtered.map(event => {
-    const status = statusText[event.status] || statusText.unknown;
+    const status = statusText[event.status] || 'Upcoming';
     const access = accessText[event.access] || accessText.unknown;
     const actionUrl = safeUrl(event.stream_url) || safeUrl(event.watch_url) || safeUrl(event.source_url);
     const secondaryUrl = safeUrl(event.source_url);
-    return `<article class="event-card ${event.status === 'live' ? 'is-live' : ''}">
-      <div class="card-top"><span class="status-tag ${escapeHtml(event.status)}">${escapeHtml(status)}</span><span class="series-tag">${escapeHtml(event.series || 'Motorsport')}</span></div>
+    return `<article class="event-card">
+      <div class="card-top"><span class="status-tag upcoming">${escapeHtml(status)}</span><span class="series-tag">${escapeHtml(event.series || 'Motorsport')}</span></div>
       <h3>${escapeHtml(event.name)}</h3><div class="event-kind">${escapeHtml(event.kind || event.category || 'Event')}</div>
-      <div class="event-meta"><div class="meta-cell"><small>Local time</small><strong>${escapeHtml(formatDate(event.start_utc))}</strong></div><div class="meta-cell"><small>Region</small><strong>${escapeHtml(event.region || 'Global')}</strong></div></div>
+      <div class="event-meta"><div class="meta-cell"><small>DATE / SCHEDULE</small><strong>${escapeHtml(formatEventSchedule(event))}</strong></div><div class="meta-cell"><small>REGION</small><strong>${escapeHtml(event.region || 'Global')}</strong></div></div>
       <div class="access-row"><span class="access-tag ${escapeHtml(event.access || 'unknown')}">${escapeHtml(access)}</span><span class="platform-text">${escapeHtml(event.platform || 'Platform unidentified')}</span></div>
-      <div class="card-actions">${actionUrl ? `<a class="primary-link" href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer">${event.stream_url ? 'Open stream ↗' : 'Where to watch ↗'}</a>` : '<a class="primary-link" href="https://www.google.com/search?q='+encodeURIComponent(`${event.series} ${event.name} live stream`)+'" target="_blank" rel="noopener noreferrer">Find a stream ↗</a>'}${secondaryUrl && secondaryUrl !== actionUrl ? `<a href="${escapeHtml(secondaryUrl)}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}</div>
+      <div class="card-actions">${actionUrl ? `<a class="primary-link" href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener noreferrer">${event.stream_url ? 'Open stream ↗' : 'Official event / watch info ↗'}</a>` : '<a class="primary-link" href="https://www.google.com/search?q='+encodeURIComponent(`${event.series} ${event.name} official schedule`)+'" target="_blank" rel="noopener noreferrer">Find official schedule ↗</a>'}${secondaryUrl && secondaryUrl !== actionUrl ? `<a href="${escapeHtml(secondaryUrl)}" target="_blank" rel="noopener noreferrer">Source ↗</a>` : ''}</div>
     </article>`;
   }).join('');
 }
 function renderDiscoveries() {
   const list = $('#discover-list');
   if (!state.discoveries.length) {
-    list.innerHTML = '<div class="empty-state"><strong>No discovery leads loaded.</strong><p>Run a scan to find live-stream announcements.</p></div>'; return;
+    list.innerHTML = '<div class="empty-state"><strong>No upcoming discovery leads yet.</strong><p>Search for future calendars, announced rounds, entry lists, previews and upcoming broadcasts. Past-event reports are kept out of this section.</p></div>'; return;
   }
   list.innerHTML = state.discoveries.map(item => {
     const url = safeUrl(item.url);
-    const leadStatus = leadStatusText[item.lead_status] || 'Unverified lead';
-    const historicalClass = item.lead_status === 'historical_reference' ? ' historical-reference' : '';
-    return `<article class="discovery-card${historicalClass}"><div><div class="discovery-badges"><span class="status-tag ${item.lead_status === 'historical_reference' ? 'past' : 'unknown'}">${escapeHtml(leadStatus)}</span><span class="access-tag ${escapeHtml(item.access || 'unknown')}">${escapeHtml(accessText[item.access] || accessText.unknown)}</span></div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary || item.note || 'No summary available.')}</p><div class="discovery-meta"><span>${escapeHtml(item.source_name || 'External source')}</span><span>${escapeHtml(item.series || 'Motorsport')}</span><span>${escapeHtml(formatDate(item.published_utc || item.published))}</span></div><small>${escapeHtml(item.note || 'Editorial lead only — not a verified live stream.')}</small></div><div class="discovery-side"><span class="platform-text">${escapeHtml(item.platform || 'Platform unidentified')}</span>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}</div></article>`;
+    const leadStatus = leadStatusText[item.lead_status] || 'Upcoming motorsport lead';
+    return `<article class="discovery-card"><div><div class="discovery-badges"><span class="status-tag upcoming">${escapeHtml(leadStatus)}</span><span class="access-tag ${escapeHtml(item.access || 'unknown')}">${escapeHtml(accessText[item.access] || accessText.unknown)}</span></div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.summary || item.note || 'No summary available.')}</p><div class="discovery-meta"><span>${escapeHtml(item.source_name || 'External source')}</span><span>${escapeHtml(item.series || 'Motorsport')}</span><span>${escapeHtml(formatDate(item.published_utc || item.published))}</span></div><small>${escapeHtml(item.note || 'Future motorsport lead only — not a verified live stream.')}</small></div><div class="discovery-side"><span class="platform-text">${escapeHtml(item.platform || 'Platform unidentified')}</span>${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a>` : ''}</div></article>`;
   }).join('');
 }
 function renderSearchPresets() {
@@ -82,10 +108,11 @@ function renderSearchPresets() {
   if (state.searchPresets.some(preset => preset.id === current)) select.value = current;
 }
 function renderSources() {
-  $('#source-grid').innerHTML = state.sources.map(source => {
+  const officialSources = state.sources.filter(source => ['official','regional'].includes(source.confidence));
+  $('#source-grid').innerHTML = officialSources.map(source => {
     const url = safeUrl(source.url); const evidence = safeUrl(source.official_info);
-    return `<article class="source-card"><div class="source-card-top"><h3>${escapeHtml(source.platform)}</h3><span class="access-tag ${escapeHtml(source.access)}">${escapeHtml(accessText[source.access] || accessText.unknown)}</span></div><div class="source-series">${escapeHtml(source.series)}</div><div class="source-region">${escapeHtml(source.region)}</div><p>${escapeHtml(source.note)}</p><div class="source-evidence">${source.confidence === "official" ? "OFFICIAL REFERENCE" : source.confidence === "regional" ? "REGIONAL GUIDE" : "SOURCE / COMMUNITY"} · checked on ${escapeHtml(source.last_checked || "not provided")}</div><div class="source-actions">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open platform ↗</a>` : ''}${evidence ? `<a href="${escapeHtml(evidence)}" target="_blank" rel="noopener noreferrer">View reference</a>` : ''}</div></article>`;
-  }).join('') || '<div class="empty-state">No sources added.</div>';
+    return `<article class="source-card"><div class="source-card-top"><h3>${escapeHtml(source.platform)}</h3><span class="access-tag ${escapeHtml(source.access)}">${escapeHtml(accessText[source.access] || accessText.unknown)}</span></div><div class="source-series">${escapeHtml(source.series)}</div><div class="source-region">${escapeHtml(source.region)}</div><p>${escapeHtml(source.note)}</p><div class="source-evidence">${source.confidence === "official" ? "OFFICIAL REFERENCE" : "OFFICIAL REGIONAL GUIDE"} · checked on ${escapeHtml(source.last_checked || "not provided")}</div><div class="source-actions">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open official guide ↗</a>` : ''}${evidence && evidence !== url ? `<a href="${escapeHtml(evidence)}" target="_blank" rel="noopener noreferrer">View official source</a>` : ''}</div></article>`;
+  }).join('') || '<div class="empty-state">No official watch guides added yet.</div>';
 }
 function renderDashboard(data) {
   state.events = data.events || []; state.discoveries = data.discoveries || []; state.sources = data.sources || []; state.searchPresets = data.search_presets || [];
@@ -98,17 +125,13 @@ async function fetchDashboard() {
 async function refreshRadar() {
   setLoading(true);
   try {
-    // Live broadcasts are the primary purpose of APEX: scan them first so a
-    // slower calendar/news refresh never delays the answer to "what is live now?".
     const live = await scanLiveNow(false);
     const response = await fetch('/api/refresh', {method:'POST'});
     const result = await response.json();
     await fetchDashboard();
-    // Dashboard rendering resets summary counters; repaint Live Now from the
-    // just-populated provider cache without spending additional API quota.
     await scanLiveNow(false);
     if (result.errors?.length) showToast(`Live scan complete (${live?.count ?? 0} active streams). Schedule/news warnings: ${result.errors.join(' | ')}`, true);
-    else showToast(`Radar refreshed: ${live?.count ?? 0} active broadcasts now, ${result.events_updated} scheduled events, ${result.discoveries_updated} discovery leads.`);
+    else showToast(`Radar refreshed: ${live?.count ?? 0} active broadcasts now, ${result.events_updated} future events, ${result.discoveries_updated} future discovery leads.`);
   } catch (error) { showToast(error.message || 'Refresh failed.', true); }
   finally { setLoading(false); }
 }
@@ -140,11 +163,13 @@ function checkUpcomingAlerts() {
   const now = Date.now();
   state.events.forEach(event => {
     if (!event.start_utc || event.status !== 'upcoming') return;
+    // Race-weekend API timestamps are date-range placeholders, not session times.
+    if (/weekend/i.test(String(event.kind || ''))) return;
     const start = new Date(event.start_utc).getTime(); const diff = start - now;
     if (diff > 0 && diff <= 15*60*1000) {
       const key = `radar-alert-${event.id || event.external_id}-${event.start_utc}`;
       if (!sessionStorage.getItem(key)) {
-        new Notification(`Starts soon: ${event.name}`, {body:`${event.series} · ${formatDate(event.start_utc)} · ${event.platform || 'platform TBC'}`});
+        new Notification(`Starts soon: ${event.name}`, {body:`${event.series} · ${formatEventSchedule(event)}`});
         sessionStorage.setItem(key, '1');
       }
     }
@@ -170,7 +195,7 @@ function openLiveSearch(target) {
   const urls = {
     youtube: `https://www.youtube.com/results?search_query=${encoded}`,
     twitch: `https://www.twitch.tv/search?term=${encodeURIComponent(term)}`,
-    web: `https://www.google.com/search?q=${encodeURIComponent(`\"${term}\" (live OR livestream OR \"watch live\")`)}`
+    web: `https://www.google.com/search?q=${encodeURIComponent(`"${term}" (upcoming OR calendar OR schedule OR "next round")`)}`
   };
   const url = urls[target]; if (url) window.open(url, '_blank', 'noopener,noreferrer');
 }
@@ -253,7 +278,7 @@ async function searchNewsRadar() {
     if (!response.ok) throw new Error(data.error || "APEX search failed.");
     await fetchDashboard();
     activateTab("discover");
-    showToast(data.count ? `${data.count} leads found for: ${term}` : `No recent news found for: ${term}`);
+    showToast(data.count ? `${data.count} future leads found for: ${term}` : `No future motorsport leads found for: ${term}`);
   } catch (error) {
     showToast(error.message || "Could not search this discipline.", true);
   } finally {

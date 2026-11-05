@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -110,7 +111,7 @@ def save_discoveries(items: list[dict[str, Any]]) -> None:
             """, (
                 item["id"], item["title"], item.get("summary"), item["url"], item.get("published"),
                 item.get("source_name"), item.get("series"), item.get("platform"), item.get("access"),
-                item.get("note"), item.get("lead_status", "unverified_lead"),
+                item.get("note"), item.get("lead_status", "upcoming_lead"),
             ))
 
 
@@ -121,19 +122,36 @@ def get_events() -> list[dict[str, Any]]:
 
 
 def purge_irrelevant_discoveries() -> int:
-    """Remove non-motorsport/reaction noise, but retain old articles as historical leads."""
-    from collectors.discovery import is_valid_discovery, is_stale_watch_guide
+    """Keep old records in SQLite, but only expose future-focused motorsport leads."""
+    from collectors.discovery import is_valid_discovery, is_upcoming_discovery, is_stale_watch_guide, POST_EVENT_RE, FUTURE_YEAR_RE
 
     with connect() as conn:
         rows = conn.execute("SELECT id, title, summary, published_utc FROM discoveries").fetchall()
         invalid_ids = []
         for row in rows:
-            if not is_valid_discovery(row["title"], row["summary"] or "", row["published_utc"]):
+            title = row["title"]
+            summary = row["summary"] or ""
+            published = row["published_utc"]
+            if not is_valid_discovery(title, summary, published):
                 invalid_ids.append(row["id"])
                 continue
-            status = "historical_reference" if is_stale_watch_guide(
-                row["published_utc"], row["title"], row["summary"] or ""
-            ) else "unverified_lead"
+            if is_upcoming_discovery(title, summary, published):
+                status = "upcoming_lead"
+            else:
+                text = f"{title} {summary}"
+                stamp_is_old = False
+                if published:
+                    try:
+                        stamp = datetime.fromisoformat(published.replace("Z", "+00:00"))
+                        if stamp.tzinfo is None:
+                            stamp = stamp.replace(tzinfo=timezone.utc)
+                        stamp_is_old = datetime.now(timezone.utc) - stamp.astimezone(timezone.utc) > timedelta(days=45)
+                    except (TypeError, ValueError, OverflowError):
+                        pass
+                future_years = [int(value) for value in FUTURE_YEAR_RE.findall(text)]
+                has_future_year = any(year > datetime.now(timezone.utc).year for year in future_years)
+                historical = is_stale_watch_guide(published, title, summary) or bool(POST_EVENT_RE.search(text)) or (stamp_is_old and not has_future_year)
+                status = "historical_reference" if historical else "unverified_lead"
             conn.execute("UPDATE discoveries SET lead_status=? WHERE id=?", (status, row["id"]))
         if invalid_ids:
             conn.executemany("DELETE FROM discoveries WHERE id = ?", [(item_id,) for item_id in invalid_ids])
@@ -141,8 +159,12 @@ def purge_irrelevant_discoveries() -> int:
 
 
 def get_discoveries(limit: int = 60) -> list[dict[str, Any]]:
+    """Return stored discovery records; radar.dashboard_data applies the future-only view."""
     with connect() as conn:
-        rows = conn.execute("SELECT * FROM discoveries ORDER BY CASE WHEN lead_status='historical_reference' THEN 1 ELSE 0 END, published_utc DESC LIMIT ?", (limit,)).fetchall()
+        rows = conn.execute(
+            "SELECT * FROM discoveries ORDER BY published_utc DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
     return [dict(row) for row in rows]
 
 
@@ -158,4 +180,8 @@ def get_setting(key: str) -> str | None:
 
 def set_setting(key: str, value: str) -> None:
     with connect() as conn:
-        conn.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, value))
+        conn.execute(
+            "INSERT INTO settings(key,value) VALUES(?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )

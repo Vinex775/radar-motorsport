@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d10">
-  <meta name="description" content="Find motorsport livestreams happening right now across global streaming platforms.">
+  <meta name="description" content="Find real motorsport livestreams, upcoming race schedules, future event leads and official watch guides.">
   <title>Motorsport Radar — APEX</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,8 +42,8 @@
 
       <section class="stats-grid" aria-label="Radar overview">
         <article class="stat-card stat-live"><span class="stat-label"><i></i> LIVE BROADCASTS NOW</span><strong id="stat-live">—</strong><small>Active streams reported by connected platforms</small></article>
-        <article class="stat-card"><span class="stat-label">UPCOMING EVENTS</span><strong id="stat-upcoming">—</strong><small>From collected schedules</small></article>
-        <article class="stat-card"><span class="stat-label">BROADCAST LEADS</span><strong id="stat-leads">—</strong><small>News to investigate</small></article>
+        <article class="stat-card"><span class="stat-label">UPCOMING EVENTS</span><strong id="stat-upcoming">—</strong><small>Future sessions and race weekends</small></article>
+        <article class="stat-card"><span class="stat-label">DISCOVERY LEADS</span><strong id="stat-leads">—</strong><small>Future-focused motorsport news</small></article>
         <article class="stat-card"><span class="stat-label">LAST SCAN</span><strong class="stat-time" id="last-refresh">Not run yet</strong><small>Refresh to find new data</small></article>
       </section>
 
@@ -56,74 +56,74 @@
 
       <section class="tab-panel active" id="panel-live">
         <div class="section-heading">
-          <div><div class="eyebrow">ACTIVE BROADCAST SCANNER / 00</div><h2>LIVE RIGHT NOW</h2><p>Streams reported as active by YouTube, Twitch, and Kick. Scheduled sessions and old news never count as live broadcasts.</p></div>
+          <div><div class="eyebrow">ACTIVE BROADCAST SCANNER / 00</div><h2>LIVE RIGHT NOW</h2><p>Only active broadcasts reported by YouTube, Twitch and Kick. A platform's LIVE status does not by itself prove a physical race is on screen.</p></div>
           <button class="button button-primary" id="scan-live-button" type="button"><span class="refresh-icon">↻</span> Scan all platforms</button>
         </div>
-        <div class="notice-strip"><span>!</span><div><strong>What “Live Now” means:</strong> The platform API reports that the channel is currently broadcasting. APEX filters for motorsport relevance, but open the stream to confirm that it is the actual race feed. Access price and regional restrictions remain unknown unless separately verified.</div></div>
+        <div class="notice-strip"><span>!</span><div><strong>What “Live Now” means:</strong> The platform API reports that a channel is broadcasting at this moment. APEX filters out obvious replays, game streams and non-race support activity; uncertain content still needs manual verification.</div></div>
         <div class="platform-results" id="platform-results"><div class="empty-state"><strong>Starting the global live scan…</strong><p>APEX will check every configured live platform.</p></div></div>
         <p class="data-note" id="live-last-scan">Automatic re-check every 5 minutes. YouTube search is cached for 20 minutes to respect its daily API request limit.</p>
       </section>
 
       <section class="tab-panel" id="panel-events">
         <div class="section-heading">
-          <div><div class="eyebrow">TRACKING BOARD / 01</div><h2>ON TRACK</h2><p>Events found by collectors and manually added broadcasts.</p></div>
+          <div><div class="eyebrow">FUTURE RACE SCHEDULE / 01</div><h2>SCHEDULE & EVENTS</h2><p>Upcoming race weekends, rounds, practice sessions and qualifying. Past events are not shown here.</p></div>
           <button class="button button-outline" id="add-event-button" type="button">＋ Add event</button>
         </div>
         <div class="filter-bar">
           <label class="search-box"><span>⌕</span><input id="event-search" type="search" placeholder="Search category, round, country..."></label>
-          <select id="status-filter" aria-label="Filter by status"><option value="all">All statuses</option><option value="live">In progress</option><option value="upcoming">Upcoming</option></select>
+          <select id="status-filter" aria-label="Filter upcoming events"><option value="all">All upcoming</option><option value="upcoming">Upcoming</option></select>
           <select id="access-filter" aria-label="Filter by access"><option value="all">Any access</option><option value="free">Free</option><option value="subscription">Subscription</option><option value="ppv">Pay-per-view</option><option value="unknown">Unknown</option></select>
         </div>
-        <div class="event-grid" id="event-grid"><div class="empty-state"><div class="empty-icon">⌁</div><strong>The radar has not run its first scan yet.</strong><p>Click “Refresh radar” to find events and broadcast leads.</p></div></div>
-        <p class="data-note">“In progress” means the scheduled session window is active; it does not guarantee that a player is broadcasting right now.</p>
+        <div class="event-grid" id="event-grid"><div class="empty-state"><div class="empty-icon">⌁</div><strong>The radar has not run its first scan yet.</strong><p>Click “Refresh radar” to find upcoming events and future race weekends.</p></div></div>
+        <p class="data-note">Weekend-level entries show date ranges, not artificial session times. A schedule is not proof of a live video; active streams appear only in Live Now.</p>
       </section>
 
       <section class="tab-panel" id="panel-discover">
         <div class="section-heading">
-          <div><div class="eyebrow">EDITORIAL RESEARCH / 02</div><h2>DISCOVERY LEADS</h2><p>News, local organizers, historic broadcast references, and obscure series clues. These are not live-now confirmations.</p></div>
+          <div><div class="eyebrow">FUTURE MOTORSPORT RESEARCH / 02</div><h2>DISCOVERY LEADS</h2><p>Future-focused news, announced calendars, entry lists, previews, registrations and upcoming broadcast clues.</p></div>
         </div>
         <div class="live-finder">
-          <div class="finder-copy"><strong>SEARCH FOR BROADCAST CLUES</strong><span>Search news and articles for a series, circuit, country, organizer, or local championship.</span></div>
+          <div class="finder-copy"><strong>SEARCH FOR FUTURE MOTORSPORT LEADS</strong><span>Search for upcoming events by series, circuit, country, organizer or local championship.</span></div>
           <div class="finder-presets"><label class="preset-field">DISCIPLINE SHORTCUTS<select id="category-preset"><option value="">Choose a discipline to fill the search</option></select></label><label class="preset-field">COUNTRY / REGION (OPTIONAL)<input id="region-search" type="search" placeholder="E.g. Sweden, France, Brazil, Norway"></label></div>
-          <div class="finder-controls"><input id="live-search" type="search" value="motorsport" placeholder="Any discipline, championship, team, or country"><button class="button button-primary" id="news-search" type="button">Search news leads</button><button class="button button-outline" id="youtube-search" type="button">YouTube ↗</button><button class="button button-outline" id="twitch-search" type="button">Twitch ↗</button><button class="button button-outline" id="web-search" type="button">Web ↗</button></div>
-          <small>Use the Live Now tab to scan actual active streams across configured platform APIs. This section searches editorial clues and keeps historical material separate.</small>
+          <div class="finder-controls"><input id="live-search" type="search" value="motorsport" placeholder="Any discipline, championship, team, or country"><button class="button button-primary" id="news-search" type="button">Search future leads</button><button class="button button-outline" id="youtube-search" type="button">YouTube ↗</button><button class="button button-outline" id="twitch-search" type="button">Twitch ↗</button><button class="button button-outline" id="web-search" type="button">Web ↗</button></div>
+          <small>This section is not Live Now. Completed-event recaps, old “watch live” pages and post-session videos are excluded from the future lead list.</small>
         </div>
-        <div class="discover-list" id="discover-list"><div class="empty-state"><strong>No discovery leads loaded.</strong><p>Run a scan to search for live broadcast clues across karting, rally, endurance, and other disciplines. Historical clues are retained separately from Live Now results.</p></div></div>
+        <div class="discover-list" id="discover-list"><div class="empty-state"><strong>No upcoming discovery leads loaded.</strong><p>Search for future calendars, announced rounds, entry lists, previews and upcoming broadcasts.</p></div></div>
       </section>
 
       <section class="tab-panel" id="panel-sources">
         <div class="section-heading">
-          <div><div class="eyebrow">OFFICIAL WATCH DIRECTORY / 03</div><h2>WHERE TO WATCH</h2><p>Shortcuts to official pages. Availability may vary by region and broadcast rights.</p></div>
+          <div><div class="eyebrow">OFFICIAL WATCH DIRECTORY / 03</div><h2>WHERE TO WATCH</h2><p>One directory of official championship, organizer and broadcaster pages. Availability depends on event and region.</p></div>
         </div>
         <div class="source-grid" id="source-grid"></div>
       </section>
 
       <section class="bottom-callout">
-        <div class="callout-icon">＋</div><div><strong>Found an obscure race?</strong><p>Add a karting stream, regional rally, national championship, or any broadcast not yet listed in APEX.</p></div><button class="button button-primary" id="add-event-button-bottom" type="button">Add a broadcast</button>
+        <div class="callout-icon">＋</div><div><strong>Found an obscure race?</strong><p>Add a future karting event, regional rally, national championship or upcoming broadcast not yet listed in APEX.</p></div><button class="button button-primary" id="add-event-button-bottom" type="button">Add an event</button>
       </section>
     </main>
 
-    <footer><span>APEX / MOTORSPORT RADAR</span><span>Built to find racing wherever it happens.</span><span>v1.4.1 · OPEN SOURCE</span></footer>
+    <footer><span>APEX / MOTORSPORT RADAR</span><span>Built to find racing wherever it happens.</span><span>v1.5.0 · OPEN SOURCE</span></footer>
   </div>
 
   <dialog id="event-dialog" class="event-dialog">
     <form id="event-form" method="dialog">
-      <div class="dialog-heading"><div><div class="eyebrow">MANUAL ENTRY</div><h2>NEW EVENT</h2></div><button class="dialog-close" type="button" id="close-dialog" aria-label="Close">×</button></div>
-      <p class="dialog-intro">Use this form for smaller championships or broadcasts not yet discovered automatically.</p>
+      <div class="dialog-heading"><div><div class="eyebrow">MANUAL SCHEDULE ENTRY</div><h2>NEW EVENT</h2></div><button class="dialog-close" type="button" id="close-dialog" aria-label="Close">×</button></div>
+      <p class="dialog-intro">Use this form to add a future race, session or regional championship that is not yet collected automatically.</p>
       <div class="form-grid">
         <label class="field field-wide">Event / round<input name="name" required maxlength="180" placeholder="E.g. Swedish Karting Championship — Series C"></label>
         <label class="field">Discipline / championship<input name="series" required maxlength="100" placeholder="Ex.: Karting"></label>
-        <label class="field">Session type<input name="kind" placeholder="Race, practice, qualifying..."></label>
+        <label class="field">Session type<input name="kind" placeholder="Race weekend, practice, qualifying..."></label>
         <label class="field">Start (local time)<input name="start" type="datetime-local" required></label>
         <label class="field">End (optional)<input name="end" type="datetime-local"></label>
-        <label class="field">Platform<input name="platform" required placeholder="YouTube, Twitch, TV... "></label>
+        <label class="field">Platform / broadcaster<input name="platform" required placeholder="YouTube, Twitch, TV... "></label>
         <label class="field">Access type<select name="access" required><option value="unknown">Unknown</option><option value="free">Free</option><option value="subscription">Subscription</option><option value="ppv">Pay-per-view</option></select></label>
         <label class="field field-wide">Direct stream URL (optional)<input name="stream_url" type="url" placeholder="https://..."></label>
-        <label class="field field-wide">Official page / calendar (optional)<input name="watch_url" type="url" placeholder="https://..."></label>
+        <label class="field field-wide">Official event / calendar URL<input name="watch_url" type="url" placeholder="https://..."></label>
         <label class="field">Region<input name="region" placeholder="E.g. Sweden / Global"></label>
-        <label class="field">Discipline<input name="category" placeholder="Ex.: Kart / Turismo / Rally"></label>
+        <label class="field">Discipline<input name="category" placeholder="Ex.: Kart / Touring Cars / Rally"></label>
       </div>
-      <div class="form-actions"><span id="form-message" role="status"></span><button class="button button-outline" type="button" id="cancel-dialog">Cancel</button><button class="button button-primary" type="submit">Save to APEX</button></div>
+      <div class="form-actions"><span id="form-message" role="status"></span><button class="button button-outline" type="button" id="cancel-dialog">Cancel</button><button class="button button-primary" type="submit">Save event</button></div>
     </form>
   </dialog>
 

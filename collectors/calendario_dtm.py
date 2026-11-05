@@ -1,4 +1,4 @@
-"""Collect the public DTM schedule.
+"""Collect the official DTM schedule.
 
 The API is not publicly documented, so this collector fails safely and
 never prevents other radar modules from working.
@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 API = "https://api.dtm.com/data"
-HEADERS = {"User-Agent": "MotorsportRadar/1.0 (personal motorsport schedule aggregator)"}
+HEADERS = {"User-Agent": "APEX-Motorsport-Radar/1.5.0 (local motorsport schedule aggregator)"}
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -42,8 +42,17 @@ def _get(params: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _is_future_or_active(start: datetime | None, end: datetime | None, now: datetime) -> bool:
+    """Reject sessions/weekends that have ended, including entries with no end time."""
+    if not start:
+        return False
+    if start > now:
+        return True
+    return bool(end and end >= now)
+
+
 def fetch_dtm_events() -> list[dict[str, Any]]:
-    """Return upcoming/current DTM sessions in the radar standard format."""
+    """Return current/future DTM sessions in the APEX schedule format."""
     payload = _get({"query": "eventsRacetrack"})
     now = datetime.now(timezone.utc)
     candidates = []
@@ -56,7 +65,7 @@ def fetch_dtm_events() -> list[dict[str, Any]]:
             continue
         start = _parse_datetime(event.get("startTime"))
         end = _parse_datetime(event.get("endTime"))
-        if not start or (end and end < now):
+        if not _is_future_or_active(start, end, now):
             continue
         candidates.append((start, event))
 
@@ -64,9 +73,8 @@ def fetch_dtm_events() -> list[dict[str, Any]]:
     if not candidates:
         return []
 
-    # Coleta a programação das próximas etapas que a API disponibilizar.
     results: list[dict[str, Any]] = []
-    for _, event in candidates[:3]:
+    for _, event in candidates[:8]:
         slug = event.get("slug")
         if not slug:
             continue
@@ -84,17 +92,16 @@ def fetch_dtm_events() -> list[dict[str, Any]]:
                 continue
             start = _parse_datetime(session.get("start"))
             end = _parse_datetime(session.get("end"))
-            if not start:
+            if not _is_future_or_active(start, end, now):
                 continue
-            if end and end < now:
-                continue
+
             label = session.get("label") or "Session"
             headline = session.get("headline") or details.get("name") or "DTM"
             results.append({
                 "external_id": f"dtm:{slug}:{session.get('id') or start.isoformat()}:{label}",
                 "name": headline,
                 "series": "DTM",
-                "category": "Turismo / GT",
+                "category": "Touring Cars / GT",
                 "kind": label,
                 "start": start.isoformat(),
                 "end": end.isoformat() if end else None,
@@ -104,21 +111,23 @@ def fetch_dtm_events() -> list[dict[str, Any]]:
                 "watch_url": "https://www.dtm.com/live/live-on-tv",
                 "region": "Global — availability varies by country",
                 "confidence": "regional",
-                "source_name": "DTM oficial",
+                "source_name": "DTM official",
                 "source_url": "https://www.dtm.com/live/live-on-tv",
             })
             added_sessions += 1
 
-        # If the session timetable has not been published yet.
+        # If the session timetable has not been published, retain the weekend
+        # range. The UI displays a date range and deliberately suppresses the
+        # API's evening placeholder time for a full race weekend.
         if not added_sessions:
             start = _parse_datetime(details.get("startTime") or event.get("startTime"))
             end = _parse_datetime(details.get("endTime") or event.get("endTime"))
-            if start:
+            if _is_future_or_active(start, end, now):
                 results.append({
                     "external_id": f"dtm:{slug}:weekend",
                     "name": details.get("name") or event.get("name") or "DTM round",
                     "series": "DTM",
-                    "category": "Turismo / GT",
+                    "category": "Touring Cars / GT",
                     "kind": "Race weekend",
                     "start": start.isoformat(),
                     "end": end.isoformat() if end else None,
@@ -128,7 +137,7 @@ def fetch_dtm_events() -> list[dict[str, Any]]:
                     "watch_url": "https://www.dtm.com/live/live-on-tv",
                     "region": "Global — availability varies by country",
                     "confidence": "regional",
-                    "source_name": "DTM oficial",
+                    "source_name": "DTM official",
                     "source_url": "https://www.dtm.com/live/live-on-tv",
                 })
     return results

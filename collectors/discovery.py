@@ -1,8 +1,8 @@
-"""Discover broadcast leads through Google News RSS.
+"""Discover future-focused motorsport leads through Google News RSS.
 
-Results are editorial leads, never confirmation of an active live stream.
-Discipline, platform, and access are inferred only when the text contains
-explicit evidence; uncertain values remain "unknown".
+Discovery Leads contains announcements, previews, calendars, entry lists and
+other editorial clues about motorsport activity that has not happened yet.
+It is not a live-stream feed; active streams belong in Live Now.
 """
 from __future__ import annotations
 
@@ -18,35 +18,38 @@ from xml.etree import ElementTree
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-# Broad searches are grouped by motorsport families. Custom search
-# complements these scans for very small local series and clubs.
+# Each search combines a motorsport family/region with future-focused terms.
+FUTURE_NEWS_TERMS = (
+    '("upcoming" OR "this weekend" OR "next weekend" OR "next round" OR '
+    '"race calendar" OR "event calendar" OR "schedule announced" OR '
+    '"dates announced" OR "entry list" OR "entries open" OR registration OR '
+    'preview OR "season opener" OR "tickets on sale" OR "live stream" OR livestream)'
+)
+
 QUERIES = [
-    '("live stream" OR livestream OR "watch live") (Formula 1 OR Formula 2 OR Formula 3 OR Formula 4 OR "Formula Regional" OR "Formula E")',
-    '("live stream" OR livestream OR "watch live") (karting OR kart OR "club karting" OR "national karting" OR "regional karting")',
-    '("live stream" OR livestream OR "watch live") (WRC OR ERC OR rally OR "rally raid" OR Dakar OR rallycross OR "cross country rally")',
-    '("live stream" OR livestream OR "watch live") (WEC OR ELMS OR IMSA OR endurance OR GT3 OR GT4 OR "GT World Challenge" OR Nürburgring)',
-    '("live stream" OR livestream OR "watch live") (NASCAR OR IndyCar OR Supercars OR DTM OR TCR OR BTCC OR "stock car")',
-    '("live stream" OR livestream OR "watch live") (drag racing OR NHRA OR dragster OR arrancada OR "time attack")',
-    '("live stream" OR livestream OR "watch live") (drift OR "Formula Drift" OR "Drift Masters" OR hillclimb OR autocross)',
-    '("live stream" OR livestream OR "watch live") (MotoGP OR Moto2 OR Moto3 OR WorldSBK OR superbike OR road racing motorcycle)',
-    '("live stream" OR livestream OR "watch live") (motocross OR supercross OR enduro OR trials OR hard enduro OR MXGP)',
-    '("live stream" OR livestream OR "watch live") (speedway OR "speedway grand prix" OR "ice speedway" OR "long track")',
-    '("live stream" OR livestream OR "watch live") ("sprint car" OR midget OR "dirt late model" OR "short track racing" OR "oval racing")',
-    '("live stream" OR livestream OR "watch live") ("club racing" OR "grassroots racing" OR "amateur racing" OR "local race series")',
-    '(corrida ao vivo OR automobilismo ao vivo OR kart ao vivo OR rally ao vivo OR transmissão ao vivo) (corrida OR campeonato)',
-    '(carreras en directo OR rally en directo OR karting en directo OR motocross en directo) campeonato',
-    '(Rennsport live OR Rallye live OR Kart live OR Bergrennen live OR Motorsport livestream) Meisterschaft',
-    '(motorsport live OR karting live OR rally live OR speedway live) Sweden OR Sverige',
-    '(motorsport live OR karting live OR rally live OR speedway live) Norway OR Norge',
-    '(motorsport live OR karting live OR rally live OR speedway live OR autosuunnistus OR rallisprint) Finland OR Suomi',
-    '(motorsport live OR karting live OR rally live OR speedway live) Denmark OR Danmark',
+    f'(Formula 1 OR Formula 2 OR Formula 3 OR Formula 4 OR "Formula Regional" OR "Formula E") {FUTURE_NEWS_TERMS}',
+    f'(karting OR kart OR "club karting" OR "national karting" OR "regional karting") {FUTURE_NEWS_TERMS}',
+    f'(WRC OR ERC OR rally OR "rally raid" OR Dakar OR rallycross OR "cross country rally") {FUTURE_NEWS_TERMS}',
+    f'(WEC OR ELMS OR IMSA OR endurance OR GT3 OR GT4 OR "GT World Challenge" OR Nürburgring) {FUTURE_NEWS_TERMS}',
+    f'(NASCAR OR IndyCar OR Supercars OR DTM OR TCR OR BTCC OR "stock car") {FUTURE_NEWS_TERMS}',
+    f'("drag racing" OR NHRA OR dragster OR arrancada OR "time attack") {FUTURE_NEWS_TERMS}',
+    f'(drift OR "Formula Drift" OR "Drift Masters" OR hillclimb OR autocross) {FUTURE_NEWS_TERMS}',
+    f'(MotoGP OR Moto2 OR Moto3 OR WorldSBK OR superbike OR "road racing motorcycle") {FUTURE_NEWS_TERMS}',
+    f'(motocross OR supercross OR enduro OR trials OR "hard enduro" OR MXGP) {FUTURE_NEWS_TERMS}',
+    f'(speedway OR "speedway grand prix" OR "ice speedway" OR "long track") {FUTURE_NEWS_TERMS}',
+    f'("sprint car" OR midget OR "dirt late model" OR "short track racing" OR "oval racing") {FUTURE_NEWS_TERMS}',
+    f'("club racing" OR "grassroots racing" OR "amateur racing" OR "local race series") {FUTURE_NEWS_TERMS}',
+    f'(corrida OR automobilismo OR kart OR rally OR motocross) (calendário OR calendário OR "próxima etapa" OR "inscrições abertas" OR programação OR "ao vivo")',
+    f'(carreras OR rally OR karting OR motocross) (próxima OR calendario OR "próxima ronda" OR inscripciones OR programación)',
+    f'(Rennsport OR Rallye OR Kart OR Bergrennen OR Motorsport) (Vorschau OR Kalender OR Termine OR Nennung OR "nächstes Rennen")',
+    f'(motorsport OR karting OR rally OR speedway) (upcoming OR calendar OR schedule OR entries) (Sweden OR Sverige)',
+    f'(motorsport OR karting OR rally OR speedway) (upcoming OR calendar OR schedule OR entries) (Norway OR Norge)',
+    f'(motorsport OR karting OR rally OR speedway OR autosuunnistus OR rallisprint) (upcoming OR calendar OR schedule OR entries) (Finland OR Suomi)',
+    f'(motorsport OR karting OR rally OR speedway) (upcoming OR calendar OR schedule OR entries) (Denmark OR Danmark)',
 ]
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.4.1; +https://github.com/)"}
-LIVE_TERMS = '("live stream" OR livestream OR "watch live" OR streaming OR "ao vivo" OR transmissão)'
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; APEX-Motorsport-Radar/1.5.0; +https://github.com/)"}
 
-# Google News also interprets "rally" as a political event. Negative terms
-# help the query, but local validation below is the definitive safeguard.
 EXCLUDED_NEWS_TERMS = (
     '-eleição -eleições -candidato -candidatos -senador -senado -governador -comício -comícios -política -político '
     '-election -elections -candidate -candidates -senator -senate -governor '
@@ -70,7 +73,6 @@ POLITICAL_CONTEXT_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Explicit motorsport signals that do not rely on the ambiguous word "race".
 MOTORSPORT_CONTEXT_RE = re.compile(
     r"\b(?:motorsports?|motor sports?|racing|race cars?|racecars?|racing cars?|"
     r"kart(?:ing)?|formula\s?[1-4e]|f[1-4]|fia|wrc|erc|wec|elms|imsa|nascar|"
@@ -94,11 +96,7 @@ MOTORSPORT_CONTEXT_RE = re.compile(
 
 
 def is_motorsport_result(title: str, description: str = "") -> bool:
-    """Reject political rallies/news and require explicit motorsport context.
-
-    The word "rally" alone is never enough; it must be accompanied
-    by terms typical of motorsport rallying (WRC, stages, drivers, cars, etc.).
-    """
+    """Reject political rallies/news and require explicit motorsport context."""
     text = f"{title or ''} {description or ''}"
     if POLITICAL_CONTEXT_RE.search(text) or NON_MOTORSPORT_RACING_RE.search(text):
         return False
@@ -112,23 +110,38 @@ REACTION_ONLY_RE = re.compile(
 )
 WATCH_GUIDE_RE = re.compile(
     r"\b(?:live|where to watch|how to watch|watch live|watch online|live stream|livestream|live broadcast|live coverage|"
-    r"assistir ao vivo|onde assistir|link para assistir|transmissão ao vivo|transmissao ao vivo|"
+    r"ao vivo|assistir ao vivo|onde assistir|link para assistir|transmissão ao vivo|transmissao ao vivo|"
     r"streaming ao vivo|watch the race live)\b",
     re.IGNORECASE,
 )
 FUTURE_EVENT_RE = re.compile(
-    r"\b(?:next weekend|next week|upcoming|this coming|tomorrow|próximo|proxima etapa|"
-    r"próxima etapa|next round|round \d+ preview|preview)\b",
+    r"\b(?:upcoming|this weekend|next weekend|next week|tomorrow|tonight|today|"
+    r"next round|next season|season opener|season starts?|season preview|"
+    r"calendar|schedule|entry list|entries open|registration open|"
+    r"tickets on sale|dates announced|announces? (?:the )?calendar|"
+    r"will host|will take place|scheduled for|set for|preview|pre[- ]event|"
+    r"próximo|próxima|proxima etapa|próxima etapa|próximo fim de semana|"
+    r"inscrições abertas|inscripcion(?:es)? abiertas|calendário|programação|"
+    r"anuncia (?:o )?calendário|fechas confirmadas|termin(?:e|a) announced)\b",
     re.IGNORECASE,
 )
+POST_EVENT_RE = re.compile(
+    r"\b(?:post[- ]session|post[- ]race|post[- ]event|after the race|after the event|"
+    r"race recap|event recap|session recap|recap|review|results?|final standings|"
+    r"winner|podium|highlights?|compilation|replay|full race archive|"
+    r"pós[- ]sessão|pós[- ]corrida|pos[- ]sessao|pos[- ]corrida|"
+    r"resultado(?:s)?|vencedor|campeão|campeonato decidido|resumo da corrida|"
+    r"melhores momentos)\b",
+    re.IGNORECASE,
+)
+FUTURE_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 
 
 def is_reaction_or_commentary(title: str, description: str = "") -> bool:
-    """True when a result appears to be reaction/commentary rather than the race feed."""
+    """True when a result appears to be reaction/commentary rather than a race feed."""
     text = f"{title or ''} {description or ''}"
     if not REACTION_ONLY_RE.search(text):
         return False
-    # Keep explicit official race-feed announcements even if they mention commentary.
     official_feed = re.search(
         r"\b(?:official race feed|full race broadcast|live race feed|official live broadcast)\b",
         text,
@@ -137,31 +150,63 @@ def is_reaction_or_commentary(title: str, description: str = "") -> bool:
     return not bool(official_feed)
 
 
+def _parse_published(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def is_upcoming_discovery(
+    title: str,
+    description: str = "",
+    published: str | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Return True only for leads that point to future motorsport activity.
+
+    A future year in the content is strong evidence. Otherwise, require an
+    upcoming-event signal and a recent article date. Post-session recaps,
+    results, replay pages and old "watch live" pages are not upcoming leads.
+    """
+    text = f"{title or ''} {description or ''}"
+    if POST_EVENT_RE.search(text):
+        return False
+
+    current = now or datetime.now(timezone.utc)
+    future_years = [int(value) for value in FUTURE_YEAR_RE.findall(text)]
+    if any(year > current.year for year in future_years):
+        return True
+
+    if not FUTURE_EVENT_RE.search(text):
+        return False
+
+    stamp = _parse_published(published)
+    if stamp is None:
+        # A query may return a dated calendar/announcement with no RSS pubDate.
+        return True
+    age = current.astimezone(timezone.utc) - stamp
+    return timedelta(0) <= age <= timedelta(days=45)
+
+
 def is_stale_watch_guide(published: str | None, title: str, description: str = "", now=None) -> bool:
-    """Identify older broadcast guides for historical labelling; publication recency is not live status."""
+    """Compatibility helper for old database rows; these are hidden from Discovery Leads."""
     if not published or not WATCH_GUIDE_RE.search(f"{title or ''} {description or ''}"):
         return False
-    if FUTURE_EVENT_RE.search(f"{title or ''} {description or ''}"):
+    current = now or datetime.now(timezone.utc)
+    stamp = _parse_published(published)
+    if stamp is None:
         return False
-    try:
-        stamp = datetime.fromisoformat(published.replace("Z", "+00:00"))
-        if stamp.tzinfo is None:
-            stamp = stamp.replace(tzinfo=timezone.utc)
-        current = now or datetime.now(timezone.utc)
-        if current.tzinfo is None:
-            current = current.replace(tzinfo=timezone.utc)
-        return current.astimezone(timezone.utc) - stamp.astimezone(timezone.utc) > timedelta(hours=36)
-    except (TypeError, ValueError, OverflowError):
-        return False
+    return current.astimezone(timezone.utc) - stamp > timedelta(hours=36)
 
 
 def is_valid_discovery(title: str, description: str = "", published: str | None = None, now=None) -> bool:
-    """Return whether a news item is a plausible motorsport broadcast lead.
-
-    Article age is deliberately NOT a rejection criterion. Old articles can reveal
-    obscure series, local broadcasters, channels, and recurring coverage patterns.
-    They are labelled as historical references and never treated as live-now proof.
-    """
+    """Validate motorsport relevance, independently from whether the lead is future-focused."""
     return (
         is_motorsport_result(title, description)
         and not is_reaction_or_commentary(title, description)
@@ -208,6 +253,7 @@ def detect_platform(text: str) -> str:
         (r"youtube", "YouTube"),
         (r"twitch", "Twitch"),
         (r"fiawec\+", "FIAWEC+"),
+        (r"dirtvision", "DIRTVision"),
         (r"rally\.tv", "Rally.TV"),
         (r"motogp videopass|videopass", "MotoGP VideoPass"),
         (r"worldsbk videopass", "WorldSBK VideoPass"),
@@ -266,10 +312,6 @@ def detect_series(text: str) -> str:
         (r"rallysprint|rally sprint", "Rallysprint"),
         (r"tractor pulling|tractor pull", "Tractor pulling"),
         (r"banger racing|short track racing", "Stock car / Short track"),
-        (r"folkrace", "Folkrace"),
-        (r"rallysprint|rally sprint", "Rallysprint"),
-        (r"tractor pulling|tractor pull", "Tractor pulling"),
-        (r"banger racing|short track racing", "Stock car / Short track"),
         (r"sprint car|midget|dirt late model|short.track racing|oval racing", "Oval / Sprint Cars / Midgets"),
         (r"time attack|time trial", "Time Attack"),
         (r"ice racing|ice racing car|snowmobile racing", "Ice / Snow racing"),
@@ -295,7 +337,7 @@ def _parse_date(value: str) -> str | None:
 
 
 def locale_for_query(query: str) -> tuple[str, str, str]:
-    """Choose a Google News edition based on the country/language in the query."""
+    """Choose a Google News edition based on country/language in the query."""
     value = (query or "").lower()
     regional = [
         (r"suecia|suécia|sverige|sweden|swedish", ("sv-SE", "SE", "SE:sv")),
@@ -338,14 +380,21 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
         source_name = _plain_text(source_node.text if source_node is not None else "Google News")
         if not title or not link or not link.startswith(("http://", "https://")):
             continue
-        # A result returned by a search for "rally" is not sufficient:
-        # validate its title and summary to avoid political rallies and politics.
-        # Exclude political noise, reaction-only pages, and stale watch guides.
         if not is_valid_discovery(title, description, published):
             continue
         key = hashlib.sha256(link.encode("utf-8")).hexdigest()[:18]
         full_text = f"{title} {description}"
-        historical = is_stale_watch_guide(published, title, description)
+        upcoming = is_upcoming_discovery(title, description, published)
+        historical = (
+            is_stale_watch_guide(published, title, description)
+            or bool(POST_EVENT_RE.search(full_text))
+            or (
+                _parse_published(published) is not None
+                and datetime.now(timezone.utc) - _parse_published(published) > timedelta(days=45)
+                and not any(year > datetime.now(timezone.utc).year for year in map(int, FUTURE_YEAR_RE.findall(full_text)))
+            )
+        )
+        lead_status = "upcoming_lead" if upcoming else "historical_reference" if historical else "unverified_lead"
         results[key] = {
             "id": key,
             "title": title,
@@ -356,14 +405,15 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
             "series": detect_series(full_text),
             "platform": detect_platform(full_text),
             "access": classify_access(full_text),
-            "lead_status": "historical_reference" if historical else "unverified_lead",
+            "lead_status": lead_status,
             "is_verified_live": False,
             "note": (
-                "Historical broadcast reference. It may help identify a series or broadcaster, "
-                "but it is not evidence that a race is live now."
+                "Future motorsport lead. It points to an upcoming event, calendar, entry list, "
+                "preview or broadcast announcement; it is not proof that a stream is live now."
+                if upcoming else
+                "Historical reference. Kept in local storage for research, but hidden from the future Discovery Leads view."
                 if historical else
-                "News lead only. It is not proof of a current live stream; verify the event date, "
-                "session, region, platform, and access at the original source."
+                "Unverified editorial lead. It may be relevant, but APEX has not established that the event is still upcoming."
             ),
         }
     ordered = sorted(results.values(), key=lambda item: item.get("published") or "", reverse=True)
@@ -371,7 +421,7 @@ def _parse_feed(payload: bytes, limit: int = 30) -> list[dict]:
 
 
 def discover_broadcast_leads(limit: int = 60) -> list[dict]:
-    """Run broad discovery searches while isolating failures by motorsport family."""
+    """Run broad future-focused searches while isolating failures by motorsport family."""
     fetched: list[bytes] = []
     with ThreadPoolExecutor(max_workers=min(8, len(QUERIES))) as pool:
         futures = [pool.submit(_fetch_query, query) for query in QUERIES]
@@ -396,19 +446,23 @@ def discover_broadcast_leads(limit: int = 60) -> list[dict]:
 
 
 def search_custom_discovery_leads(query: str, limit: int = 25) -> list[dict]:
-    """Search RSS for a user-entered discipline, championship, or region."""
+    """Search for future motorsport activity in a user-entered discipline or region."""
     clean = re.sub(r"\s+", " ", (query or "")).strip()[:180]
     if len(clean) < 2:
         raise ValueError("Enter at least 2 characters to search.")
-    payload = _fetch_query(f'({clean}) {LIVE_TERMS}')
+    payload = _fetch_query(f'({clean}) {FUTURE_NEWS_TERMS}')
     try:
         results = _parse_feed(payload, limit=max(1, min(limit, 40)))
     except ElementTree.ParseError as exc:
         raise OSError("The news source returned an invalid feed.") from exc
-    # Custom search results remain leads, never live-now confirmations.
     for item in results:
-        if item.get("lead_status") == "historical_reference":
-            item["note"] = "Historical custom-search reference. Useful for finding a local series or broadcaster, but not evidence of a current live stream."
+        if item.get("lead_status") == "upcoming_lead":
+            item["note"] = (
+                "Future custom-search lead. Check the organizer's original page for the event date, "
+                "session, platform, territory and access conditions."
+            )
+        elif item.get("lead_status") == "historical_reference":
+            item["note"] = "Historical custom-search editorial lead. Kept for research, not shown as a future lead."
         else:
-            item["note"] = "Custom Google News result. This is an editorial lead, not a verified live stream. Check the original source."
+            item["note"] = "Custom Google News editorial lead. It is not yet confirmed as a future event; verify dates with the organizer."
     return results

@@ -4,24 +4,42 @@
 
 APEX is a discovery aggregator. It points users to calendars, news, channels, and official watch pages. It does not host or rebroadcast video, bypass paywalls, or circumvent regional restrictions.
 
-> **Important:** APEX separates **Live Now** results from **Discovery Leads**. A search result, news article, or scheduled session window is never proof that a video is live. Historical articles are retained as research clues, not displayed as current broadcasts.
+> **Important:** APEX keeps four separate views: **Live Now** (active platform broadcasts), **Schedule & Events** (future race sessions and weekends), **Discovery Leads** (future-focused motorsport announcements), and **Where to Watch** (official organizer, championship, and broadcaster pages). A scheduled event or news article is never proof that a video is live.
 
 ## Features
 
+- **Live Now:** concurrent YouTube, Twitch, and Kick API scans for streams the platforms report as active.
+- Live-candidate filters for obvious replays, 24/7 loops, video-game streams, and track-construction/support activity.
+- **Schedule & Events:** future-only event list, with multi-day race weekends shown as date ranges including the year.
 - DTM schedule collector, isolated so a source failure does not stop the rest of the radar.
-- Broad discovery searches across formula racing, karting, rally and rally raid, GT/endurance, touring cars, stock cars, motorcycles, motocross, drag racing, drifting, hillclimb, speedway, oval racing, and regional series.
+- **Discovery Leads:** future calendars, upcoming rounds, entry lists, previews, registrations, and future broadcast announcements. Past-event recaps and old watch guides are not shown in this view.
+- Broad multilingual motorsport discovery across formula racing, karting, rally and rally raid, GT/endurance, touring cars, stock cars, motorcycles, motocross, drag racing, drifting, hillclimb, speedway, oval racing, and regional series.
 - Custom search for any championship, country, circuit, or obscure series using Google News RSS, with regional editions selected where possible.
 - Search shortcuts for 25+ motorsport families and regions.
-- Dedicated **Live Now** scan across YouTube, Twitch, and Kick APIs; all configured providers are queried concurrently.
-- Broad multilingual motorsport live-search terms covering major series and grassroots disciplines such as autosuunnistus, folkrace, rallisprint, autoslalom, tractor pulling, and short-track racing.
-- Historical broadcast references are retained and labelled; old articles are never presented as proof of a current live stream.
-- Reaction/watch-along results are filtered from race-feed candidates.
-- Official watch-source directory.
+- **Where to Watch:** official organizer, championship, and broadcaster references only. Regional availability and access conditions are identified where known.
 - Access labels: **Free**, **Subscription**, **Pay-per-view**, and **Unknown**.
-- Manual event entry for series without a collector.
+- Manual event entry for future events without a collector.
 - Browser notifications for upcoming events while the dashboard remains open.
 - Local SQLite storage; no account or external database required.
 - MIT-licensed code and GitHub Actions tests.
+
+## The four dashboard sections
+
+### Live Now
+
+Only YouTube, Twitch, and Kick API results that the platform reports as active broadcasts. A platform's live indicator confirms that a channel is broadcasting, not that the video is a real-world race. APEX removes obvious replays, loops, gaming, and track-construction content, but ambiguous streams still need manual verification.
+
+### Schedule & Events
+
+Only future race sessions, rounds, and race weekends are shown. Past events and sessions that have already started are not listed here. Weekend-level records display a date range and year; a placeholder timestamp from a calendar API is not presented as a session start time.
+
+### Discovery Leads
+
+A research view for motorsport activity that has not happened yet: upcoming event announcements, future calendars, registration and entry-list news, previews, and future broadcast information. Historical and unverified articles may remain in the local database for audit/research, but they are hidden from the Discovery Leads view.
+
+### Where to Watch
+
+A central directory of official championship, event organizer, and broadcaster pages. Community-only links are excluded. Price, session coverage, and geographic restrictions are shown as unknown unless an official source explicitly documents them.
 
 ## Requirements
 
@@ -54,13 +72,15 @@ python3 main.py
 
 Then open <http://127.0.0.1:5000>.
 
-## Discover broadcasts
+## Discover future motorsport leads
 
-1. Open **Discover**.
-2. Enter a category, championship, circuit, country, or regional series — for example `Swedish club karting`, `Finnish rallycross`, or `Brazil hillclimb`.
+1. Open **Discovery Leads**.
+2. Enter a discipline, championship, circuit, country, organizer, or regional series — for example `Swedish club karting`, `Finnish rallycross`, or `Brazil hillclimb`.
 3. Optionally add a region to narrow the search.
-4. Select **Search APEX** to find recent news and announcements.
-5. Open the original source and confirm the event date, session, platform, territory, and access conditions.
+4. Select **Search future leads**.
+5. Open the original source and confirm the event date, organizer, venue, session, platform, territory, and access conditions.
+
+Discovery Leads is intentionally future-focused. An old article with “LIVE” in its title, a post-session react, a race recap, or a result report does not belong in this view. A future lead is still an editorial clue, not a verified broadcast.
 
 APEX searches in multiple languages, but no search engine indexes every local club, federation, or broadcast. Some events will be missed; some results will require manual verification.
 
@@ -135,9 +155,14 @@ Access is specific to the **series + platform + region + season + session**. A f
 
 ## Discovery quality and false positives
 
-Search engines may confuse motorsport “rally” with political rallies, surface reaction streams as if they were race feeds, or return articles about events that have already ended. APEX rejects political noise and obvious reaction/watch-along pages. Old watch guides are retained as **Historical references** because they can reveal obscure series and local broadcasters. They are not treated as Live Now results. These filters reduce false positives but cannot eliminate them all.
+Search engines may confuse motorsport “rally” with political rallies, surface reaction streams as if they were race feeds, or return articles about events that have already ended. APEX applies separate rules to the four dashboard views:
 
-Please report false positives with the source URL, result title, and why it is misleading. Do not report a result as verified merely because its title says “LIVE.”
+- Replays, 24/7 loops, gaming, and obvious non-race support activity are filtered from Live Now.
+- Past and already-started sessions are kept out of the future-only Schedule & Events list.
+- Completed-event reports, post-session content, stale “watch live” pages, and generic unverified articles are kept out of Discovery Leads.
+- Where to Watch displays only official organizer, championship, and broadcaster references.
+
+These filters are heuristic and cannot inspect video frames or guarantee every event date. Please report false positives with the source URL, result title, and why it is misleading. Do not report a result as verified merely because its title says “LIVE.”
 
 ## Project layout
 
@@ -145,7 +170,7 @@ Please report false positives with the source URL, result title, and why it is m
 - `app.py`: HTTP server and API routes
 - `radar.py`: collector orchestration and dashboard data
 - `db.py`: local SQLite persistence
-- `collectors/`: schedule/news discovery plus YouTube, Twitch, and Kick live connectors
+- `collectors/`: DTM schedule, future-news discovery, and YouTube/Twitch/Kick live connectors
 - `data/search_presets.json`: discovery shortcuts
 - `data/watch_sources.json`: official watch-source directory
 - `templates/index.html`: dashboard markup
@@ -174,10 +199,10 @@ Do not commit API keys, tokens, cookies, personal data, or local database files.
 ## Current limitations
 
 - There is no single public API containing every motorsport event and worldwide broadcast right.
-- DTM is currently the only structured automatic schedule collector. Other series are discovered through live platform APIs, news, official directories, or manual entry.
-- Google News RSS discovers articles and announcements; it does not inspect a video player or guarantee a current live feed.
-- Only platform API results that explicitly identify a current broadcast are labelled Live Now. APEX still cannot guarantee that the video is the official race feed.
-- A schedule window means only that the published session time overlaps the current time; it is not a live-video verification.
+- DTM is currently the only structured automatic schedule collector. Other series can be researched through Discovery Leads, official watch directories, platform APIs, and manual event entry, but do not automatically populate Schedule & Events yet.
+- Google News RSS discovers editorial leads; it does not inspect a video player, confirm the event date independently, or guarantee a current live feed.
+- Only platform API results that explicitly identify a current broadcast are candidates for Live Now. APEX still cannot guarantee that the video is the official race feed.
+- Schedule & Events is future-only. A scheduled session window is not proof of a live video.
 - A truly exhaustive worldwide scan across every streaming platform is not technically possible with the current public APIs. Twitch discovery depends on platform categories, Kick discovery is capped at ten API pages per scan, and YouTube search is constrained by its daily quota and indexing. Regional/community collectors and user-submitted sources are still needed for broader coverage.
 - Broadcast rights change by country, season, event, and session. Official links can change without notice.
 - The DTM collector uses an undocumented public endpoint and may need maintenance if the provider changes it.

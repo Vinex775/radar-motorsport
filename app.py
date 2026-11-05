@@ -80,7 +80,7 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.4.1"
+    server_version = "APEX-Motorsport-Radar/1.5.0"
 
     def log_message(self, format: str, *args) -> None:
         # Keep the terminal quiet except for HTTP errors.
@@ -128,7 +128,7 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             self._json(200, radar.dashboard_data())
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.4.1"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.0"})
         elif path == "/api/sources":
             self._json(200, {"sources": radar.load_watch_sources()})
         elif path == "/api/discover-search":
@@ -138,7 +138,10 @@ class RadarHandler(BaseHTTPRequestHandler):
             try:
                 items = search_custom_discovery_leads(query)
                 db.save_discoveries(items)
-                self._json(200, {"query": query, "items": items, "count": len(items)})
+                # The endpoint returns only future-focused leads. Historical
+                # and not-yet-classified editorial records stay out of the tab.
+                future_items = [item for item in items if item.get("lead_status") == "upcoming_lead"]
+                self._json(200, {"query": query, "items": future_items, "count": len(future_items)})
             except ValueError as exc:
                 self._json(400, {"error": str(exc)})
             except OSError as exc:
