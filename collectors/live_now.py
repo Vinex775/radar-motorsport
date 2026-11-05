@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
 from collectors.kick import search_live_streams as search_kick
+from collectors.live_filter import classify_live_candidate
 from collectors.twitch import search_live_streams as search_twitch
 from collectors.youtube import search_live_videos
 
@@ -33,7 +34,7 @@ def _run_cached(source: str, query_key: str, fetch: Callable[[], dict]) -> dict:
 
 
 def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -> dict:
-    """Scan every configured live API and merge active motorsport broadcasts."""
+    """Scan configured APIs and exclude obvious replays and video-game streams."""
     clean_query = (query or "motorsport").strip()[:180] or "motorsport"
     global_scan = clean_query.lower() in {"motorsport", "all", "all motorsport", "live now"}
     youtube_key = "global" if global_scan else clean_query.casefold()
@@ -46,8 +47,7 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
         "Kick": (lambda: search_kick(max_results=max_results), "global"),
     }
 
-    # Scan all configured providers at the same time. A slow Twitch category
-    # lookup must not make YouTube or Kick results wait behind it.
+    # Each platform is isolated: a slow or broken API must not hide other feeds.
     with ThreadPoolExecutor(max_workers=len(collectors)) as pool:
         future_sources = {
             pool.submit(_run_cached, source, query_key, fetch): source
@@ -58,18 +58,36 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
             try:
                 value = future.result()
                 items = value.get("items") or []
+                kept_count = 0
+                rejected = {"replay_or_loop": 0, "video_game": 0}
                 for item in items:
+                    keep, reason = classify_live_candidate(item)
+                    if not keep:
+                        if reason in rejected:
+                            rejected[reason] += 1
+                        continue
                     item.setdefault("platform", source)
                     item.setdefault("access", "unknown")
                     item.setdefault("status", "live_now")
                     item.setdefault("is_verified_live", True)
                     results.append(item)
+                    kept_count += 1
+                filtered_count = sum(rejected.values())
+                base_message = value.get("message") or value.get("error") or ("Connected" if value.get("configured") else "Not configured")
+                if filtered_count:
+                    base_message = (
+                        f"{base_message}. Excluded {rejected['replay_or_loop']} replay/loop "
+                        f"and {rejected['video_game']} video-game stream(s)."
+                    )
                 platforms[source] = {
                     "configured": bool(value.get("configured")),
                     "ok": bool(value.get("configured")) and not value.get("error"),
-                    "count": len(items),
+                    "count": kept_count,
+                    "raw_count": len(items),
+                    "filtered": rejected,
+                    "filtered_count": filtered_count,
                     "cached": bool(value.get("cached")),
-                    "message": value.get("message") or value.get("error") or ("Connected" if value.get("configured") else "Not configured"),
+                    "message": base_message,
                     "categories_scanned": value.get("categories_scanned"),
                 }
             except Exception as exc:  # a broken platform must not hide the others
@@ -103,5 +121,10 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
             "youtube_minutes": SOURCE_TTLS["YouTube"] // 60,
             "other_platforms_minutes": SOURCE_TTLS["Twitch"] // 60,
         },
-        "note": "Platform APIs confirm that each channel is live. APEX filters for motorsport relevance, but the actual race feed and access price should still be checked on the destination platform.",
+        "note": (
+            "Platform APIs confirm that each listed channel is broadcasting now. "
+            "APEX excludes obvious replay/loop streams and video-game broadcasts from Live Now. "
+            "The APIs do not inspect video frames, so an unclear stream can still require manual verification. "
+            "Access price and territorial availability must be checked at the destination platform."
+        ),
     }
