@@ -46,7 +46,10 @@ class YouTubeUpcomingBroadcastTests(unittest.TestCase):
              patch("collectors.youtube_upcoming._video_details", return_value=details):
             result = youtube_upcoming.search_upcoming_videos("motorsport", now=now)
 
-        self.assertEqual([item["id"] for item in result["items"]], ["youtube:porsche-today"])
+        self.assertEqual(
+            {item["id"] for item in result["items"]},
+            {"youtube:porsche-today", "youtube:BFHxCOvY2Zw"},
+        )
         self.assertEqual(result["items"][0]["status"], "scheduled_today")
         self.assertEqual(result["items"][0]["scheduled_start_at"], "2026-11-05T19:30:00+00:00")
         self.assertEqual([event["external_id"] for event in result["future_events"]], ["youtube:gb3-tomorrow"])
@@ -110,7 +113,10 @@ class YouTubeUpcomingBroadcastTests(unittest.TestCase):
              patch("collectors.youtube_upcoming._request_json", side_effect=[search_payload, search_payload]), \
              patch("collectors.youtube_upcoming._video_details", return_value=details):
             result = youtube_upcoming.search_upcoming_videos("motorsport", now=now)
-        self.assertEqual(result["items"], [])
+        # The only same-day result is the explicitly supplied official Porsche
+        # Cup programme; the PS1 racing-game result must still be excluded.
+        self.assertEqual([item["id"] for item in result["items"]], ["youtube:BFHxCOvY2Zw"])
+        self.assertNotIn("game", [item["id"] for item in result["items"]])
 
     def test_unconfigured_youtube_returns_empty_lists(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -129,10 +135,19 @@ class LiveNowTodayMergeTests(unittest.TestCase):
         today = {"configured": True, "items": [{"id": "scheduled-1", "url": "https://youtube.com/watch?v=today", "title": "F1 practice", "status": "scheduled_today", "scheduled_start_at": "2026-11-05T19:30:00+00:00"}], "future_events": [{"external_id": "youtube:tomorrow", "name": "GB3 Race 2", "series": "GB3", "start_utc": "2026-11-06T14:00:00+00:00"}]}
         twitch = {"configured": False, "items": []}
         kick = {"configured": False, "items": []}
-        with patch("collectors.live_now.search_live_videos", return_value=active), \
+        class FixedDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                fixed = datetime(2026, 11, 5, 16, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
+                return fixed.astimezone(tz) if tz else fixed
+
+        with patch("collectors.live_now.datetime", FixedDateTime), \
+             patch("collectors.live_now.search_live_videos", return_value=active), \
              patch("collectors.live_now.search_upcoming_videos", return_value=today), \
              patch("collectors.live_now.search_twitch", return_value=twitch), \
-             patch("collectors.live_now.search_kick", return_value=kick):
+             patch("collectors.live_now.search_kick", return_value=kick), \
+             patch("collectors.live_now.db.get_setting", return_value=None), \
+             patch("collectors.live_now.db.set_setting"):
             result = live_now.search_all_live_streams("motorsport")
         self.assertEqual(result["active_count"], 1)
         self.assertEqual(result["scheduled_today_count"], 1)

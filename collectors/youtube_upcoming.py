@@ -41,6 +41,23 @@ OFFICIAL_UPCOMING_CHANNELS = (
     },
 )
 
+# One-time bootstrap from the official Porsche Cup broadcast page supplied by
+# the user. This preserves the 5 Nov 2026 programme even when YouTube stops
+# returning it from eventType=upcoming after its scheduled start time.
+# It expires automatically after the local date; future entries are discovered
+# through the API and persisted locally by collectors.live_now.
+KNOWN_SAME_DAY_BROADCASTS = (
+    {
+        "local_date": "2026-11-05",
+        "video_id": "BFHxCOvY2Zw",
+        "title": "ET.9 | INTERLAGOS (F1) | QUALI - SPRINT CHALLENGE | TEMPORADA 2026",
+        "channel": "Porsche Cup Brasil",
+        "channel_id": "UCwiRFcstDPKaCiOTXuoFhrQ",
+        "scheduled_start_at": "2026-11-05T19:30:00+00:00",
+        "note": "Official Porsche Cup Brasil scheduled broadcast. The scheduled start time has passed; open the stream to verify whether it started, was delayed or was cancelled.",
+    },
+)
+
 
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
@@ -188,11 +205,14 @@ def search_upcoming_videos(
         description = str(detail_snippet.get("description") or snippet.get("description") or "")
         channel = str(detail_snippet.get("channelTitle") or snippet.get("channelTitle") or "YouTube channel")
         broadcast_state = detail_snippet.get("liveBroadcastContent") or snippet.get("liveBroadcastContent") or ""
-        if broadcast_state and broadcast_state != "upcoming":
+        if broadcast_state and broadcast_state not in {"upcoming", "live"}:
             continue
 
         scheduled = _parse_datetime(live_details.get("scheduledStartTime"))
-        if not scheduled or scheduled <= utc_now:
+        if not scheduled:
+            continue
+        local_scheduled = scheduled.astimezone(local_now.tzinfo)
+        if local_scheduled.date() < today:
             continue
 
         title_channel = f"{title} {channel}"
@@ -226,17 +246,63 @@ def search_upcoming_videos(
             "platform": "YouTube",
             "category": "Scheduled broadcast",
             "access": "unknown",
-            "status": "scheduled_today" if scheduled.astimezone(local_now.tzinfo).date() == today else "scheduled_future",
-            "is_verified_live": False,
+            "status": (
+                "live_now" if broadcast_state == "live" else
+                "scheduled_today" if local_scheduled.date() == today and scheduled > utc_now else
+                "start_time_passed" if local_scheduled.date() == today else
+                "scheduled_future"
+            ),
+            "is_verified_live": broadcast_state == "live",
             "verification": "YouTube Data API eventType=upcoming + official channel search + videos.list scheduledStartTime",
-            "note": "YouTube confirms that this broadcast is scheduled. This does not prove that the video has started or that every session is included.",
+            "note": (
+                "YouTube reports this broadcast as live. Verify that the player is showing the actual race feed."
+                if broadcast_state == "live" else
+                "YouTube confirms the broadcast schedule. The scheduled start time has passed, but the platform has not confirmed that the stream started; open it to verify."
+                if local_scheduled.date() == today and scheduled <= utc_now else
+                "YouTube confirms that this broadcast is scheduled. This does not prove that the video has started or that every session is included."
+            ),
         }
-        if scheduled.astimezone(local_now.tzinfo).date() == today:
+        if local_scheduled.date() == today:
             today_items.append(item)
         else:
             future_events.append(_broadcast_record(video_id, title, channel, scheduled, url))
 
-    today_items.sort(key=lambda item: item["scheduled_start_at"])
+    # Keep the user's confirmed Porsche Cup programme visible for its local
+    # event date even if YouTube removes it from its upcoming search after the
+    # advertised start. This seed is date-scoped and expires automatically.
+    for known in KNOWN_SAME_DAY_BROADCASTS:
+        if known["local_date"] != today.isoformat():
+            continue
+        if any(item.get("id") == f"youtube:{known['video_id']}" for item in today_items):
+            continue
+        scheduled = _parse_datetime(known["scheduled_start_at"])
+        if not scheduled:
+            continue
+        status = "scheduled_today" if scheduled > utc_now else "start_time_passed"
+        today_items.append({
+            "id": f"youtube:{known['video_id']}",
+            "external_id": f"youtube:{known['video_id']}",
+            "title": known["title"],
+            "description": known["note"],
+            "channel": known["channel"],
+            "channel_id": known["channel_id"],
+            "scheduled_start_at": scheduled.isoformat(),
+            "viewers": 0,
+            "url": f"https://www.youtube.com/watch?v={known['video_id']}",
+            "platform": "YouTube",
+            "category": "Scheduled broadcast",
+            "access": "unknown",
+            "status": status,
+            "is_verified_live": False,
+            "verification": "User-supplied official Porsche Cup Brasil schedule screenshot and direct video link",
+            "note": known["note"],
+        })
+
+    status_priority = {"live_now": 0, "scheduled_today": 1, "start_time_passed": 2}
+    today_items.sort(key=lambda item: (
+        status_priority.get(item.get("status"), 3),
+        item.get("scheduled_start_at", ""),
+    ))
     future_events.sort(key=lambda item: item["start_utc"])
     result = {
         "configured": True,
@@ -245,7 +311,9 @@ def search_upcoming_videos(
         "source": "youtube_upcoming",
         "query": clean_query,
         "search_results": len(global_items) + official_search_results,
-        "scheduled_today_count": len(today_items),
+        "scheduled_today_count": sum(item.get("status") == "scheduled_today" for item in today_items),
+        "start_time_passed_count": sum(item.get("status") == "start_time_passed" for item in today_items),
+        "active_count": sum(item.get("status") == "live_now" for item in today_items),
         "future_broadcast_count": len(future_events),
         "official_channels_scanned": len(OFFICIAL_UPCOMING_CHANNELS) - len(channel_search_errors),
     }

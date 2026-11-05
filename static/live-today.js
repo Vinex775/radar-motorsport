@@ -103,7 +103,9 @@
 
   const originalRenderLiveNow = window.renderLiveNow;
   window.renderLiveNow = function(data) {
-    state.todayBroadcasts = (data.items || []).filter(item => item.status === 'scheduled_today');
+    state.todayBroadcasts = (data.items || []).filter(item =>
+      item.status === 'scheduled_today' || item.status === 'start_time_passed'
+    );
     const result = originalRenderLiveNow(data);
 
     const eyebrow = document.querySelector('#panel-live .section-heading .eyebrow');
@@ -116,28 +118,37 @@
     if (eyebrow) eyebrow.textContent = "TODAY'S BROADCAST SCANNER / 00";
     if (title) title.textContent = 'LIVE NOW & TODAY';
     if (description) description.textContent = "Active broadcasts plus YouTube livestreams scheduled to start today. Tomorrow and later go to Schedule & Events.";
-    if (notice) notice.innerHTML = '<strong>What appears here:</strong> Active platform broadcasts and YouTube livestreams whose published start time falls today in your computer’s local timezone. “Scheduled today” does not mean the broadcast has started.';
+    if (notice) notice.innerHTML = '<strong>What appears here:</strong> Confirmed live broadcasts first, then YouTube livestreams scheduled later today, followed by today’s broadcasts whose scheduled start time has passed. A passed time is a warning to verify the stream — it is not proof that the broadcast started.';
     if (statLabel) statLabel.innerHTML = '<i></i> BROADCASTS TODAY';
     if (statDescription) statDescription.textContent = 'Active now + official streams scheduled for today';
     if (liveTab && liveTab.firstChild) liveTab.firstChild.textContent = 'Live Now & Today ';
 
     const rows = document.querySelectorAll('#platform-results .live-result');
     (data.items || []).forEach((item, index) => {
-      if (item.status !== 'scheduled_today') return;
+      if (!['scheduled_today', 'start_time_passed'].includes(item.status)) return;
       const row = rows[index];
       if (!row) return;
       const badge = row.querySelector('.status-tag');
       if (badge) {
         badge.classList.remove('live');
         badge.classList.add('upcoming');
-        badge.textContent = 'SCHEDULED TODAY';
+        badge.textContent = item.status === 'start_time_passed'
+          ? 'TIME PASSED · VERIFY'
+          : 'SCHEDULED TODAY';
       }
       const meta = row.querySelector('.live-result-copy span');
-      if (meta) meta.textContent += ` · Starts ${clockLabel(item.scheduled_start_at)}`;
+      if (meta) meta.textContent += item.status === 'start_time_passed'
+        ? ` · Scheduled ${clockLabel(item.scheduled_start_at)} · start time passed`
+        : ` · Starts ${clockLabel(item.scheduled_start_at)}`;
     });
 
     const heading = document.querySelector('#platform-results .platform-results-heading');
-    if (heading) heading.textContent = `${Number(data.count ?? (data.items || []).length)} ACTIVE / SCHEDULED BROADCAST(S) TODAY`;
+    if (heading) {
+      const active = Number(data.active_count || 0);
+      const scheduled = Number(data.scheduled_today_count || 0);
+      const passed = Number(data.start_time_passed_count || 0);
+      heading.textContent = `${active} LIVE NOW · ${scheduled} STARTING LATER TODAY · ${passed} START TIMES PASSED / VERIFY`;
+    }
     const scheduledStatus = (data.platforms || {})['YouTube scheduled'];
     if (scheduledStatus && Number(scheduledStatus.future_broadcast_count || 0)) {
       const scheduledTag = Array.from(document.querySelectorAll('#platform-results .platform-source'))
@@ -145,7 +156,7 @@
       if (scheduledTag) scheduledTag.textContent += ` · ${Number(scheduledStatus.future_broadcast_count)} later in Schedule`;
     }
     const empty = document.querySelector('#platform-results .platform-empty');
-    if (empty && !data.count) empty.textContent = 'No active motorsport broadcasts or verified YouTube livestreams scheduled for today were found. Future broadcasts are listed in Schedule & Events.';
+    if (empty && !data.count) empty.textContent = 'No active broadcasts or YouTube livestreams scheduled for today were found. Tomorrow and later are listed in Schedule & Events.';
 
     mergeFutureBroadcasts(data.future_events || []);
     return result;
@@ -161,7 +172,7 @@
       for (const item of state.todayBroadcasts || []) {
         const start = new Date(item.scheduled_start_at).getTime();
         const difference = start - now;
-        if (!Number.isFinite(start) || difference <= 0 || difference > 15 * 60 * 1000) continue;
+        if (item.status !== 'scheduled_today' || !Number.isFinite(start) || difference <= 0 || difference > 15 * 60 * 1000) continue;
         const key = `apex-scheduled-broadcast-${item.external_id || item.id}-${item.scheduled_start_at}`;
         if (sessionStorage.getItem(key)) continue;
         new Notification(`Broadcast starts soon: ${item.title}`, {
@@ -178,7 +189,7 @@
     window.scanLiveNow = async function(showToastOnComplete = true) {
       const data = await originalScanLiveNow(showToastOnComplete);
       if (showToastOnComplete && data) {
-        showToast(`${Number(data.active_count || 0)} live now · ${Number(data.scheduled_today_count || 0)} scheduled for today.`);
+        showToast(`${Number(data.active_count || 0)} live now · ${Number(data.scheduled_today_count || 0)} starting later today · ${Number(data.start_time_passed_count || 0)} start times passed — verify.`);
       }
       return data;
     };
