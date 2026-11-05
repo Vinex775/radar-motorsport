@@ -9,9 +9,9 @@ APEX is a discovery aggregator. It points users to calendars, news, channels, an
 ## Features
 
 - **Live Now:** concurrent YouTube, Twitch, and Kick API scans for streams the platforms report as active.
-- Live-candidate filters for obvious replays, 24/7 loops, video-game streams, and track-construction/support activity.
+- Live-candidate filters for obvious replays, 24/7 loops, video-game streams, track-construction/support activity, and generic Racing-category results without race evidence.
 - **Schedule & Events:** future-only event list, with multi-day race weekends shown as date ranges including the year.
-- DTM schedule collector, isolated so a source failure does not stop the rest of the radar.
+- Two independent schedule sources: the DTM collector and a curated official-source schedule registry.
 - **Discovery Leads:** future calendars, upcoming rounds, entry lists, previews, registrations, and future broadcast announcements. Past-event recaps and old watch guides are not shown in this view.
 - Broad multilingual motorsport discovery across formula racing, karting, rally and rally raid, GT/endurance, touring cars, stock cars, motorcycles, motocross, drag racing, drifting, hillclimb, speedway, oval racing, and regional series.
 - Custom search for any championship, country, circuit, or obscure series using Google News RSS, with regional editions selected where possible.
@@ -27,11 +27,18 @@ APEX is a discovery aggregator. It points users to calendars, news, channels, an
 
 ### Live Now
 
-Only YouTube, Twitch, and Kick API results that the platform reports as active broadcasts. A platform's live indicator confirms that a channel is broadcasting, not that the video is a real-world race. APEX removes obvious replays, loops, gaming, and track-construction content, but ambiguous streams still need manual verification.
+Only YouTube, Twitch, and Kick API results that the platform reports as active broadcasts. A platform's live indicator confirms that a channel is broadcasting, not that the video is a real-world race. APEX removes obvious replays, loops, gaming, and track-construction content. Generic platform categories such as `Racing` also need explicit title/description evidence of a real championship, event, or session. Ambiguous streams still need manual verification.
 
 ### Schedule & Events
 
-Only future race sessions, rounds, and race weekends are shown. Past events and sessions that have already started are not listed here. Weekend-level records display a date range and year; a placeholder timestamp from a calendar API is not presented as a session start time.
+Only future race sessions, rounds, and race weekends are shown. Past events and sessions that have already started are not listed here. Weekend-level records display a date range and year; a placeholder timestamp from a calendar API is not presented as a session start time. If an official organizer has published the event dates but not session times, APEX labels the record **session times TBC** and does not create a fake start-time alert.
+
+Schedule data currently comes from:
+
+- The DTM schedule collector.
+- `data/official_schedule.json`, a curated registry of dates checked against official championship, venue, or organizer pages. Its initial coverage includes the São Paulo GP weekend, Bahrain WEC, Qatar MotoGP, Sandown 500 Supercars, NASCAR Trucks at Homestead, World of Outlaws World Finals, remaining 2026 F1 rounds, and the nine announced 2027 WEC rounds.
+
+The registry importer is not a universal scraper. Official calendars use different website structures and APIs. Dedicated page/API collectors will be added separately, series by series, with tests and source evidence. See [SCHEDULE_COLLECTORS.md](SCHEDULE_COLLECTORS.md) for the contributor format.
 
 ### Discovery Leads
 
@@ -136,7 +143,7 @@ YouTube documents `eventType=live` as returning active broadcasts only. Twitch d
 
 Official API references:
 
-- [YouTube Search: list](https://developers.google.com/youtube/data/reference/rest/v3/search/list)
+- [YouTube Search: list](https://developers.google.com/youtube/v3/docs/search/list)
 - [YouTube quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost)
 - [Twitch API Reference — Get Streams / Search Categories](https://dev.twitch.tv/docs/api/reference)
 - [Kick API — Livestreams](https://github.com/KickEngineering/KickDevDocs/blob/main/apis/livestreams.md)
@@ -157,7 +164,7 @@ Access is specific to the **series + platform + region + season + session**. A f
 
 Search engines may confuse motorsport “rally” with political rallies, surface reaction streams as if they were race feeds, or return articles about events that have already ended. APEX applies separate rules to the four dashboard views:
 
-- Replays, 24/7 loops, gaming, and obvious non-race support activity are filtered from Live Now.
+- Replays, 24/7 loops, gaming, and obvious non-race support activity are filtered from Live Now. Generic Racing-category streams without concrete race evidence are also excluded.
 - Past and already-started sessions are kept out of the future-only Schedule & Events list.
 - Completed-event reports, post-session content, stale “watch live” pages, and generic unverified articles are kept out of Discovery Leads.
 - Where to Watch displays only official organizer, championship, and broadcaster references.
@@ -170,7 +177,8 @@ These filters are heuristic and cannot inspect video frames or guarantee every e
 - `app.py`: HTTP server and API routes
 - `radar.py`: collector orchestration and dashboard data
 - `db.py`: local SQLite persistence
-- `collectors/`: DTM schedule, future-news discovery, and YouTube/Twitch/Kick live connectors
+- `collectors/`: DTM and curated official schedule importers, future-news discovery, and YouTube/Twitch/Kick live connectors
+- `data/official_schedule.json`: official-source schedule registry
 - `data/search_presets.json`: discovery shortcuts
 - `data/watch_sources.json`: official watch-source directory
 - `templates/index.html`: dashboard markup
@@ -182,7 +190,7 @@ These filters are heuristic and cannot inspect video frames or guarantee every e
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Official championship, federation, circuit, and broadcaster pages are preferred. Include the source URL, region, season, date checked, and evidence for any access claim. Use `unknown` when price or territorial rights cannot be verified.
 
-Do not invent session times. If a source publishes only an event date, keep the time unknown. New collectors should fail independently and include tests for parsing and date handling.
+Do not invent session times. If a source publishes only an event date, keep the time unknown and use the `session times TBC` marker in the schedule registry. New collectors should fail independently and include tests for parsing and date handling. See [SCHEDULE_COLLECTORS.md](SCHEDULE_COLLECTORS.md) for the registry format.
 
 Run tests with:
 
@@ -199,10 +207,10 @@ Do not commit API keys, tokens, cookies, personal data, or local database files.
 ## Current limitations
 
 - There is no single public API containing every motorsport event and worldwide broadcast right.
-- DTM is currently the only structured automatic schedule collector. Other series can be researched through Discovery Leads, official watch directories, platform APIs, and manual event entry, but do not automatically populate Schedule & Events yet.
+- DTM and the initial curated official schedule registry currently feed Schedule & Events. The registry is maintained from source-checked official dates; it is not an automatic scraper for every championship website. New series-specific page/API collectors and regional feeds still need to be added.
 - Google News RSS discovers editorial leads; it does not inspect a video player, confirm the event date independently, or guarantee a current live feed.
 - Only platform API results that explicitly identify a current broadcast are candidates for Live Now. APEX still cannot guarantee that the video is the official race feed.
-- Schedule & Events is future-only. A scheduled session window is not proof of a live video.
+- Schedule & Events is future-only. A scheduled session window is not proof of a live video. Events with dates but no published timetable are shown with times TBC.
 - A truly exhaustive worldwide scan across every streaming platform is not technically possible with the current public APIs. Twitch discovery depends on platform categories, Kick discovery is capped at ten API pages per scan, and YouTube search is constrained by its daily quota and indexing. Regional/community collectors and user-submitted sources are still needed for broader coverage.
 - Broadcast rights change by country, season, event, and session. Official links can change without notice.
 - The DTM collector uses an undocumented public endpoint and may need maintenance if the provider changes it.

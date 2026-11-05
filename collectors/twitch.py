@@ -1,4 +1,4 @@
-"""Discover active motorsport streams through Twitch Helix.
+"""Discover active physical-motorsport candidates through Twitch Helix.
 
 Requires a Twitch developer application. Credentials are read from environment
 variables (or the local .env file loaded by config.py).
@@ -14,18 +14,16 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from collectors.discovery import is_motorsport_result, is_reaction_or_commentary
+from collectors.live_filter import VIDEO_GAME_TITLE_RE
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_BASE = "https://api.twitch.tv/helix"
+# Do not query explicit video-game categories. The platform category "Racing"
+# remains searchable, but the common Live Now classifier requires event evidence.
 CATEGORY_QUERIES = (
     "motorsport", "racing", "karting", "rally", "motocross", "speedway",
     "drift", "drag racing", "hill climb", "autosuunnistus", "folkrace",
-    "rallisprint", "stock car", "tractor pulling", "iRacing", "Assetto Corsa",
-    "Gran Turismo", "Forza Motorsport", "Automobilista", "rFactor",
-)
-SIM_RACING_RE = re.compile(
-    r"\b(?:sim racing|simracing|iracing|assetto corsa|gran turismo|forza motorsport|"
-    r"automobilista|rfactor(?:\s?2)?|race room|raceroom)\b", re.IGNORECASE
+    "rallisprint", "stock car", "tractor pulling", "short track racing",
 )
 
 _TOKEN: str | None = None
@@ -57,16 +55,8 @@ def _app_token(client_id: str, client_secret: str) -> str:
     global _TOKEN, _TOKEN_EXPIRES, _TOKEN_CLIENT_ID
     if _TOKEN and _TOKEN_CLIENT_ID == client_id and time.monotonic() < _TOKEN_EXPIRES - 60:
         return _TOKEN
-    body = urlencode({
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "grant_type": "client_credentials",
-    }).encode("ascii")
-    payload = _request_json(
-        TOKEN_URL,
-        {"Content-Type": "application/x-www-form-urlencoded"},
-        body,
-    )
+    body = urlencode({"client_id": client_id, "client_secret": client_secret, "grant_type": "client_credentials"}).encode("ascii")
+    payload = _request_json(TOKEN_URL, {"Content-Type": "application/x-www-form-urlencoded"}, body)
     token = payload.get("access_token")
     if not token:
         raise RuntimeError("Twitch did not return an app access token.")
@@ -78,11 +68,7 @@ def _app_token(client_id: str, client_secret: str) -> str:
 
 def _api_get(path: str, params: list[tuple[str, str]], client_id: str, token: str) -> dict:
     url = f"{API_BASE}{path}?{urlencode(params)}"
-    return _request_json(url, {
-        "Client-Id": client_id,
-        "Authorization": f"Bearer {token}",
-        "User-Agent": "APEX-Motorsport-Radar",
-    })
+    return _request_json(url, {"Client-Id": client_id, "Authorization": f"Bearer {token}", "User-Agent": "APEX-Motorsport-Radar"})
 
 
 CATEGORY_LABEL_RE = re.compile(
@@ -94,9 +80,10 @@ CATEGORY_LABEL_RE = re.compile(
 
 
 def _motorsport_category(name: str) -> bool:
-    # Some platform categories use a short standalone label (e.g. "Rally")
-    # that is ambiguous in general news but valid as a Twitch game category.
-    return bool(CATEGORY_LABEL_RE.fullmatch(name.strip())) or is_motorsport_result(name, "") or bool(SIM_RACING_RE.search(name))
+    clean = name.strip()
+    if VIDEO_GAME_TITLE_RE.search(clean):
+        return False
+    return bool(CATEGORY_LABEL_RE.fullmatch(clean)) or is_motorsport_result(clean, "")
 
 
 def _find_categories(client_id: str, token: str) -> list[dict]:
@@ -104,7 +91,6 @@ def _find_categories(client_id: str, token: str) -> list[dict]:
     cached = _CATEGORY_CACHE.get(client_id)
     if cached and cached[1] and now - cached[0] < 24 * 60 * 60:
         return cached[1]
-
     found: dict[str, dict] = {}
     for query in CATEGORY_QUERIES:
         payload = _api_get("/search/categories", [("query", query), ("first", "100")], client_id, token)
@@ -119,16 +105,10 @@ def _find_categories(client_id: str, token: str) -> list[dict]:
 
 
 def search_live_streams(max_results: int = 300) -> dict:
-    """Return currently active Twitch streams in motorsport and sim-racing categories."""
+    """Return active Twitch streams in physical-motorsport-related categories."""
     client_id, client_secret = _credentials()
     if not client_id or not client_secret:
-        return {
-            "configured": False,
-            "items": [],
-            "source": "twitch",
-            "message": "Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET to enable Twitch live discovery.",
-        }
-
+        return {"configured": False, "items": [], "source": "twitch", "message": "Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET to enable Twitch live discovery."}
     token = _app_token(client_id, client_secret)
     categories = _find_categories(client_id, token)
     if not categories:
@@ -139,7 +119,6 @@ def search_live_streams(max_results: int = 300) -> dict:
     items: dict[str, dict] = {}
     cursor = None
     max_pages = max(1, min((int(max_results) + 99) // 100, 5))
-
     for _ in range(max_pages):
         page_params = list(params)
         if cursor:
@@ -149,36 +128,26 @@ def search_live_streams(max_results: int = 300) -> dict:
             stream_id = str(stream.get("id") or "")
             title = str(stream.get("title") or "")
             game = str(stream.get("game_name") or "")
-            tags = " ".join(stream.get("tags") or [])
-            if not stream_id or not (_motorsport_category(game) or is_motorsport_result(title, tags) or SIM_RACING_RE.search(title)):
+            tags_value = stream.get("tags") or []
+            tags = " ".join(str(tag) for tag in tags_value)
+            if not stream_id or not (_motorsport_category(game) or is_motorsport_result(title, tags)):
                 continue
             if is_reaction_or_commentary(title, tags):
                 continue
             login = str(stream.get("user_login") or "")
             channel = str(stream.get("user_name") or login or "Twitch channel")
             items[stream_id] = {
-                "id": f"twitch:{stream_id}",
-                "title": title or game or "Live motorsport stream",
-                "channel": channel,
-                "category": game or "Motorsport",
-                "platform": "Twitch",
+                "id": f"twitch:{stream_id}", "title": title or game or "Live motorsport stream",
+                "description": "", "tags": tags_value, "channel": channel,
+                "category": game or "Motorsport", "platform": "Twitch",
                 "url": f"https://www.twitch.tv/{login}" if login else "https://www.twitch.tv/",
                 "thumbnail": str(stream.get("thumbnail_url") or "").replace("{width}", "320").replace("{height}", "180"),
-                "started_at": stream.get("started_at"),
-                "viewers": int(stream.get("viewer_count") or 0),
-                "language": stream.get("language"),
-                "access": "unknown",
-                "status": "live_now",
-                "is_verified_live": True,
-                "verification": "Twitch Helix Get Streams",
-                "note": "Twitch confirms that this channel is live. Open it to verify that it is showing a motorsport session rather than commentary or another related stream.",
+                "started_at": stream.get("started_at"), "viewers": int(stream.get("viewer_count") or 0),
+                "language": stream.get("language"), "access": "unknown", "status": "live_now",
+                "is_verified_live": True, "verification": "Twitch Helix Get Streams",
+                "note": "Twitch confirms that this channel is live. APEX also checks title/category evidence, but the stream still needs visual verification when ambiguous.",
             }
         cursor = (payload.get("pagination") or {}).get("cursor")
         if not cursor or len(items) >= max_results:
             break
-    return {
-        "configured": True,
-        "items": list(items.values())[:max_results],
-        "source": "twitch",
-        "categories_scanned": len(categories),
-    }
+    return {"configured": True, "items": list(items.values())[:max_results], "source": "twitch", "categories_scanned": len(categories)}
