@@ -80,7 +80,7 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.5.1"
+    server_version = "APEX-Motorsport-Radar/1.5.3"
 
     def log_message(self, format: str, *args) -> None:
         if args and str(args[1]).startswith("4"):
@@ -111,7 +111,15 @@ class RadarHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             try:
-                self._send(200, TEMPLATE.read_bytes(), "text/html; charset=utf-8")
+                # Load the same-day scheduled-broadcast UI helper after app.js.
+                # The helper extends the existing Live Now and Schedule views
+                # without changing the four-tab HTML structure.
+                page = TEMPLATE.read_bytes()
+                app_script = b'<script src="/static/app.js"></script>'
+                helper_script = b'<script src="/static/live-today.js"></script>'
+                if app_script in page and helper_script not in page:
+                    page = page.replace(app_script, app_script + helper_script, 1)
+                self._send(200, page, "text/html; charset=utf-8")
             except OSError:
                 self._json(500, {"error": "Dashboard template not found."})
         elif path.startswith("/static/"):
@@ -127,7 +135,7 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             self._json(200, radar.dashboard_data())
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.1"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.3"})
         elif path == "/api/sources":
             self._json(200, {"sources": radar.load_watch_sources()})
         elif path == "/api/discover-search":
