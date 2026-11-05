@@ -1,9 +1,8 @@
 """Discover YouTube livestreams scheduled for today or later.
 
-Upcoming broadcasts scheduled for the computer's local date are surfaced in
-Live Now as "Scheduled today". Broadcasts scheduled after today are converted
-into Schedule & Events records. This is distinct from a championship session
-calendar: it is evidence that a specific YouTube broadcast has been scheduled.
+Global eventType=upcoming search is supplemented by channel-scoped searches
+for official motorsport broadcasters. This catches broadcasts that YouTube's
+global relevance ranking omits (for example, a Porsche Cup Brasil stream).
 """
 from __future__ import annotations
 
@@ -16,8 +15,6 @@ from collectors.discovery import is_motorsport_result, is_reaction_or_commentary
 from collectors.live_filter import classify_live_candidate
 from collectors.youtube import SEARCH_API, _request_json, _video_details
 
-# Keep the query broad and include terms needed to find official feeds whose
-# titles do not contain the generic word "motorsport" (e.g. Porsche Cup / F1).
 GLOBAL_UPCOMING_QUERY = (
     "motorsport|racing|F1|Formula 1|Porsche Cup|Carrera Cup|Sprint Challenge|"
     "karting|rally|rallye|rallycross|rally raid|autosuunnistus|rallisprint|"
@@ -28,13 +25,20 @@ GLOBAL_UPCOMING_QUERY = (
     "autoslalom|tractor pulling|banger racing|short track racing|World of Outlaws"
 )
 
-# Some specialist championships do not use "motorsport" in the stream title.
-# These exact series names are safe additional relevance signals.
 SPECIALIST_SERIES_RE = re.compile(
     r"\b(?:porsche\s+(?:cup|carrera\s+cup|sprint\s+challenge)|carrera\s+cup|"
     r"sprint\s+challenge|gb3|eurocup\s*[- ]?3|f4\s+(?:brasil|brazil)|"
     r"moto1000gp|iame\s+(?:final\s+games|x30))\b",
     re.IGNORECASE,
+)
+
+# Official channel IDs are more reliable than global search ranking. Add new
+# entries only after verifying that the channel belongs to the championship.
+OFFICIAL_UPCOMING_CHANNELS = (
+    {
+        "channel_id": "UCwiRFcstDPKaCiOTXuoFhrQ",
+        "name": "Porsche Cup Brasil",
+    },
 )
 
 
@@ -48,6 +52,29 @@ def _parse_datetime(value: str | None) -> datetime | None:
         return parsed.astimezone(timezone.utc)
     except (TypeError, ValueError, OverflowError):
         return None
+
+
+def _search_upcoming(
+    api_key: str,
+    max_results: int,
+    query: str | None = None,
+    channel_id: str | None = None,
+) -> list[dict]:
+    params = {
+        "part": "snippet",
+        "type": "video",
+        "eventType": "upcoming",
+        "maxResults": max(1, min(int(max_results), 50)),
+        "order": "relevance",
+        "safeSearch": "none",
+        "key": api_key,
+    }
+    if query:
+        params["q"] = query
+    if channel_id:
+        params["channelId"] = channel_id
+    payload = _request_json(f"{SEARCH_API}?{urlencode(params)}", api_key)
+    return payload.get("items", []) or []
 
 
 def _broadcast_record(video_id: str, title: str, channel: str, scheduled: datetime, url: str) -> dict:
@@ -79,9 +106,10 @@ def search_upcoming_videos(
 ) -> dict:
     """Return YouTube broadcasts scheduled for today and future dates.
 
-    The local date is taken from the machine running APEX. YouTube's
-    scheduledStartTime is an ISO timestamp with an explicit offset and is
-    converted to that local timezone before deciding which section receives it.
+    The global search is combined with verified official channel searches.
+    Channel-scoped results are prioritized before the global results so a
+    highly relevant official broadcast cannot be pushed out of the 50-video
+    detail lookup by unrelated worldwide results.
     """
     api_key = os.environ.get("YOUTUBE_API_KEY", "").strip()
     if not api_key:
@@ -99,20 +127,43 @@ def search_upcoming_videos(
     if len(clean_query) > 500:
         clean_query = clean_query[:500]
 
-    params = urlencode({
-        "part": "snippet",
-        "q": clean_query,
-        "type": "video",
-        "eventType": "upcoming",
-        "maxResults": max(1, min(int(max_results), 50)),
-        "order": "relevance",
-        "safeSearch": "none",
-        "key": api_key,
-    })
-    payload = _request_json(f"{SEARCH_API}?{params}", api_key)
-    search_items = payload.get("items", []) or []
-    video_ids = [str((item.get("id") or {}).get("videoId") or "") for item in search_items]
-    details = _video_details([item for item in video_ids if item], api_key)
+    # Query official channels independently of global search relevance. A
+    # channel query has no q restriction: all upcoming broadcasts from that
+    # verified championship channel can be inspected and classified.
+    prioritized_items: dict[str, dict] = {}
+    official_search_results = 0
+    channel_search_errors: list[str] = []
+    for channel in OFFICIAL_UPCOMING_CHANNELS:
+        try:
+            channel_items = _search_upcoming(
+                api_key,
+                max_results,
+                channel_id=channel["channel_id"],
+            )
+            official_search_results += len(channel_items)
+            for item in channel_items:
+                video_id = str((item.get("id") or {}).get("videoId") or "")
+                if video_id:
+                    prioritized_items[video_id] = item
+        except RuntimeError as exc:
+            # An individual official channel must not disable global discovery.
+            channel_search_errors.append(f"{channel['name']}: {exc}")
+
+    global_items = _search_upcoming(api_key, max_results, query=clean_query)
+    search_items_by_id = dict(prioritized_items)
+    for item in global_items:
+        video_id = str((item.get("id") or {}).get("videoId") or "")
+        if video_id and video_id not in search_items_by_id:
+            search_items_by_id[video_id] = item
+
+    # Detail lookups are limited to 50 IDs per request. The official channel
+    # results are inserted first so they retain priority within that limit.
+    search_items = list(search_items_by_id.values())[:max(1, min(int(max_results), 50))]
+    video_ids = [
+        str((item.get("id") or {}).get("videoId") or "")
+        for item in search_items
+    ]
+    details = _video_details([value for value in video_ids if value], api_key)
 
     if now is None:
         local_now = datetime.now().astimezone()
@@ -177,7 +228,7 @@ def search_upcoming_videos(
             "access": "unknown",
             "status": "scheduled_today" if scheduled.astimezone(local_now.tzinfo).date() == today else "scheduled_future",
             "is_verified_live": False,
-            "verification": "YouTube Data API search.list eventType=upcoming + videos.list scheduledStartTime",
+            "verification": "YouTube Data API eventType=upcoming + official channel search + videos.list scheduledStartTime",
             "note": "YouTube confirms that this broadcast is scheduled. This does not prove that the video has started or that every session is included.",
         }
         if scheduled.astimezone(local_now.tzinfo).date() == today:
@@ -187,13 +238,17 @@ def search_upcoming_videos(
 
     today_items.sort(key=lambda item: item["scheduled_start_at"])
     future_events.sort(key=lambda item: item["start_utc"])
-    return {
+    result = {
         "configured": True,
         "items": today_items,
         "future_events": future_events,
         "source": "youtube_upcoming",
         "query": clean_query,
-        "search_results": len(search_items),
+        "search_results": len(global_items) + official_search_results,
         "scheduled_today_count": len(today_items),
         "future_broadcast_count": len(future_events),
+        "official_channels_scanned": len(OFFICIAL_UPCOMING_CHANNELS) - len(channel_search_errors),
     }
+    if channel_search_errors:
+        result["message"] = "Some official channel searches failed: " + " | ".join(channel_search_errors)
+    return result

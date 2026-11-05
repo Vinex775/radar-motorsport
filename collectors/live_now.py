@@ -12,12 +12,15 @@ from collectors.twitch import search_live_streams as search_twitch
 from collectors.youtube import search_live_videos
 from collectors.youtube_upcoming import search_upcoming_videos
 
-# Keep YouTube's two search.list calls below the default 100-call daily bucket:
-# active broadcasts refresh every 20 min (about 72/day); scheduled broadcasts
-# refresh every 90 min (about 16/day). Twitch and Kick stay at 5 min.
+# Daily YouTube search.list budget:
+# - Active streams: every 20 min = about 72 calls/day.
+# - Upcoming streams: global + one verified official channel every 120 min
+#   = about 24 calls/day. Combined estimate: 96 calls/day, below the default
+#   100-call daily allowance. Do not add more channel searches without
+#   increasing this TTL or reducing the active scan frequency.
 SOURCE_TTLS = {
     "YouTube": 20 * 60,
-    "YouTube scheduled": 90 * 60,
+    "YouTube scheduled": 120 * 60,
     "Twitch": 5 * 60,
     "Kick": 5 * 60,
 }
@@ -123,6 +126,7 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                     "message": base_message,
                     "categories_scanned": value.get("categories_scanned"),
                     "future_broadcast_count": len(value.get("future_events") or []),
+                    "official_channels_scanned": value.get("official_channels_scanned", 0),
                 }
             except Exception as exc:
                 platforms[source] = {

@@ -21,6 +21,7 @@ class YouTubeUpcomingBroadcastTests(unittest.TestCase):
                 {"id": {"videoId": "old-race"}, "snippet": {"title": "WEC race live", "channelTitle": "WEC", "liveBroadcastContent": "upcoming"}},
             ]
         }
+        channel_payload = {"items": [search_payload["items"][0]]}
         details = {
             "porsche-today": {
                 "id": "porsche-today",
@@ -39,25 +40,74 @@ class YouTubeUpcomingBroadcastTests(unittest.TestCase):
             },
         }
         with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}), \
-             patch("collectors.youtube_upcoming._request_json", return_value=search_payload) as request, \
+             patch("collectors.youtube_upcoming._request_json", side_effect=[
+                 channel_payload, search_payload
+             ]) as request, \
              patch("collectors.youtube_upcoming._video_details", return_value=details):
             result = youtube_upcoming.search_upcoming_videos("motorsport", now=now)
 
         self.assertEqual([item["id"] for item in result["items"]], ["youtube:porsche-today"])
         self.assertEqual(result["items"][0]["status"], "scheduled_today")
+        self.assertEqual(result["items"][0]["scheduled_start_at"], "2026-11-05T19:30:00+00:00")
         self.assertEqual([event["external_id"] for event in result["future_events"]], ["youtube:gb3-tomorrow"])
         self.assertEqual(result["future_events"][0]["start_utc"], "2026-11-06T14:00:00+00:00")
-        params = parse_qs(urlparse(request.call_args.args[0]).query)
-        self.assertEqual(params["eventType"], ["upcoming"])
-        self.assertIn("Porsche Cup", params["q"][0])
-        self.assertIn("Formula 1", params["q"][0])
+        self.assertEqual(request.call_count, 2)
+        channel_params = parse_qs(urlparse(request.call_args_list[0].args[0]).query)
+        global_params = parse_qs(urlparse(request.call_args_list[1].args[0]).query)
+        self.assertEqual(channel_params["eventType"], ["upcoming"])
+        self.assertEqual(channel_params["channelId"], ["UCwiRFcstDPKaCiOTXuoFhrQ"])
+        self.assertNotIn("q", channel_params)
+        self.assertIn("Porsche Cup", global_params["q"][0])
+        self.assertIn("Formula 1", global_params["q"][0])
+
+    def test_finds_porsche_stream_from_official_channel_when_global_search_misses_it(self):
+        now = datetime(2026, 11, 5, 13, 23, tzinfo=ZoneInfo("America/Sao_Paulo"))
+        channel_payload = {
+            "items": [{
+                "id": {"videoId": "BFHxCOvY2Zw"},
+                "snippet": {
+                    "title": "ET.9 | INTERLAGOS (F1) | QUALI - SPRINT CHALLENGE | TEMPORADA 2026",
+                    "channelTitle": "Porsche Cup Brasil",
+                    "liveBroadcastContent": "upcoming",
+                },
+            }]
+        }
+        details = {
+            "BFHxCOvY2Zw": {
+                "id": "BFHxCOvY2Zw",
+                "snippet": {
+                    "title": "ET.9 | INTERLAGOS (F1) | QUALI - SPRINT CHALLENGE | TEMPORADA 2026",
+                    "channelTitle": "Porsche Cup Brasil",
+                    "liveBroadcastContent": "upcoming",
+                    "description": "Transmissão oficial Porsche Cup Brasil. Classificatório Sprint Challenge em Interlagos.",
+                },
+                "liveStreamingDetails": {
+                    "scheduledStartTime": "2026-11-05T16:30:00-03:00"
+                },
+            }
+        }
+        with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}), \
+             patch("collectors.youtube_upcoming._request_json", side_effect=[
+                 channel_payload, {"items": []}
+             ]) as request, \
+             patch("collectors.youtube_upcoming._video_details", return_value=details):
+            result = youtube_upcoming.search_upcoming_videos("motorsport", now=now)
+
+        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(result["items"][0]["id"], "youtube:BFHxCOvY2Zw")
+        self.assertEqual(result["items"][0]["status"], "scheduled_today")
+        self.assertEqual(result["items"][0]["scheduled_start_at"], "2026-11-05T19:30:00+00:00")
+        self.assertEqual(result["items"][0]["url"], "https://www.youtube.com/watch?v=BFHxCOvY2Zw")
+        self.assertEqual(result["future_events"], [])
+        channel_params = parse_qs(urlparse(request.call_args_list[0].args[0]).query)
+        self.assertEqual(channel_params["channelId"], ["UCwiRFcstDPKaCiOTXuoFhrQ"])
 
     def test_rejects_video_game_scheduled_streams(self):
         now = datetime(2026, 11, 5, 12, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
         search_payload = {"items": [{"id": {"videoId": "game"}, "snippet": {"title": "PS1 Racing Games!", "channelTitle": "Retro games", "liveBroadcastContent": "upcoming"}}]}
         details = {"game": {"id": "game", "snippet": {"title": "PS1 Racing Games!", "channelTitle": "Retro games", "liveBroadcastContent": "upcoming", "description": "Classic games"}, "liveStreamingDetails": {"scheduledStartTime": "2026-11-05T16:30:00-03:00"}}}
         with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test-key"}), \
-             patch("collectors.youtube_upcoming._request_json", return_value=search_payload), \
+             patch("collectors.youtube_upcoming._request_json", side_effect=[search_payload, search_payload]), \
              patch("collectors.youtube_upcoming._video_details", return_value=details):
             result = youtube_upcoming.search_upcoming_videos("motorsport", now=now)
         self.assertEqual(result["items"], [])
@@ -89,6 +139,7 @@ class LiveNowTodayMergeTests(unittest.TestCase):
         self.assertEqual(result["count"], 2)
         self.assertEqual(len(result["future_events"]), 1)
         self.assertEqual(result["future_events"][0]["external_id"], "youtube:tomorrow")
+        self.assertEqual(result["refresh_policy"]["youtube_scheduled_minutes"], 120)
 
 
 if __name__ == "__main__":
