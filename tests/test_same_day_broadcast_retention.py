@@ -78,6 +78,58 @@ class SameDayBroadcastRetentionTests(unittest.TestCase):
         self.assertEqual(result["scheduled_today_count"], 1)
         self.assertEqual(result["start_time_passed_count"], 1)
 
+
+    def test_future_broadcasts_are_persisted_for_schedule_cards_and_counter_uses_kept_items(self):
+        future_events = [
+            {
+                "external_id": f"youtube:future-{index}",
+                "name": f"GB3 Championship Race {index}",
+                "series": "GB3 Championship",
+                "category": "Scheduled broadcast",
+                "kind": "YouTube broadcast",
+                "start_utc": f"2026-11-06T{10 + index:02d}:00:00+00:00",
+                "end_utc": None,
+                "platform": "YouTube — scheduled broadcast",
+                "access": "unknown",
+                "stream_url": f"https://www.youtube.com/watch?v=future-{index}",
+                "watch_url": f"https://www.youtube.com/watch?v=future-{index}",
+                "region": "Global",
+                "confidence": "platform_api",
+                "source_name": "GB3 Championship",
+                "source_url": f"https://www.youtube.com/watch?v=future-{index}",
+            }
+            for index in range(1, 8)
+        ]
+        # A game-like item must not inflate the visible/saved future count.
+        future_events.append({
+            "external_id": "youtube:game",
+            "name": "PS1 Racing Games",
+            "series": "Retro gaming",
+            "category": "Scheduled broadcast",
+            "start_utc": "2026-11-06T20:00:00+00:00",
+            "stream_url": "https://www.youtube.com/watch?v=game",
+        })
+        unavailable = {"configured": False, "items": []}
+        scheduled = {"configured": True, "items": [], "future_events": future_events}
+
+        with patch("collectors.live_now.datetime", FixedDateTime), \
+             patch("collectors.live_now.search_live_videos", return_value=unavailable), \
+             patch("collectors.live_now.search_upcoming_videos", return_value=scheduled), \
+             patch("collectors.live_now.search_twitch", return_value=unavailable), \
+             patch("collectors.live_now.search_kick", return_value=unavailable), \
+             patch("collectors.live_now.db.get_setting", return_value=None), \
+             patch("collectors.live_now.db.set_setting"), \
+             patch("collectors.live_now.db.upsert_event", create=True) as upsert:
+            result = live_now.search_all_live_streams("motorsport")
+
+        self.assertEqual(len(result["future_events"]), 7)
+        self.assertEqual(result["platforms"]["YouTube scheduled"]["future_broadcast_count"], 7)
+        self.assertEqual(result["future_broadcasts_persisted"], 7)
+        self.assertEqual(upsert.call_count, 7)
+        self.assertTrue(all(call.args[1] == "youtube_scheduled" for call in upsert.call_args_list))
+        first_record = upsert.call_args_list[0].args[0]
+        self.assertEqual(first_record["start"], first_record["start_utc"])
+
     def test_active_result_replaces_same_video_scheduled_record(self):
         now = datetime(2026, 11, 5, 19, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
         scheduled = [{

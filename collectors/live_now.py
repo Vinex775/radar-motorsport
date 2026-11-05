@@ -158,6 +158,7 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                     "non_race_support_activity": 0,
                     "insufficient_motorsport_evidence": 0,
                 }
+                kept_future_count = 0
                 for item in items:
                     keep, reason = classify_live_candidate(item)
                     if not keep:
@@ -183,6 +184,7 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                         keep, reason = classify_live_candidate(candidate)
                         if keep:
                             future_events.append(event)
+                            kept_future_count += 1
                         elif reason in rejected:
                             rejected[reason] += 1
 
@@ -205,7 +207,9 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                     "cached": bool(value.get("cached")),
                     "message": base_message,
                     "categories_scanned": value.get("categories_scanned"),
-                    "future_broadcast_count": len(value.get("future_events") or []),
+                    # Count only future broadcasts that passed the same filter
+                    # used by the Schedule & Events insertion path.
+                    "future_broadcast_count": kept_future_count,
                     "official_channels_scanned": value.get("official_channels_scanned", 0),
                 }
             except Exception as exc:
@@ -216,6 +220,27 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                     "cached": False,
                     "message": f"{type(exc).__name__}: {exc}",
                 }
+
+    # Persist future YouTube broadcasts in SQLite so Schedule & Events does
+    # not depend on a temporary browser-only array. Stable external IDs make
+    # every scan an upsert rather than creating duplicates.
+    persisted_future_count = 0
+    persistence_errors: list[str] = []
+    seen_future_ids: set[str] = set()
+    for event in future_events:
+        external_id = str(event.get("external_id") or "").strip()
+        start_utc = event.get("start_utc")
+        if not external_id or not start_utc or external_id in seen_future_ids:
+            continue
+        seen_future_ids.add(external_id)
+        database_event = dict(event)
+        database_event["start"] = start_utc
+        database_event["end"] = event.get("end_utc")
+        try:
+            db.upsert_event(database_event, "youtube_scheduled")
+            persisted_future_count += 1
+        except Exception as exc:
+            persistence_errors.append(f"{external_id}: {type(exc).__name__}: {exc}")
 
     # Restore same-day scheduled broadcasts from local history. This keeps a
     # stream visible after its published start time even if YouTube drops it
@@ -260,6 +285,8 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
         "scheduled_today_count": scheduled_today_count,
         "start_time_passed_count": start_time_passed_count,
         "future_events": future_events,
+        "future_broadcasts_persisted": persisted_future_count,
+        "future_broadcast_persistence_errors": persistence_errors,
         "platforms": platforms,
         "configured_sources": configured_count,
         "scanned_at": time.time(),
