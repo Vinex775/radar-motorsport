@@ -1,5 +1,11 @@
+import io
 import unittest
+from urllib.error import HTTPError
+from email.message import Message
+from unittest.mock import patch
+
 from collectors.live_filter import classify_live_candidate
+from collectors import kick
 
 
 class LiveCandidateFilterTests(unittest.TestCase):
@@ -23,11 +29,22 @@ class LiveCandidateFilterTests(unittest.TestCase):
             {"title": "Ranked lobby", "category": "Forza Motorsport"},
             {"title": "Sonic Racing: CrossWorlds", "category": "Sonic Racing: CrossWorlds"},
             {"title": "Motorsport Manager career mode", "category": "Motorsport Manager"},
+            {"title": "KR* Burst 2F", "category": "Racing Master"},
             {"title": "Live gameplay", "category": "Racing"},
         )
         for item in examples:
             with self.subTest(item=item):
                 self.assertEqual(classify_live_candidate(item), (False, "video_game"))
+
+    def test_rejects_track_construction_and_other_support_work(self):
+        examples = (
+            {"title": "I-500 Track Construction", "category": "Snowmobile Racing"},
+            {"title": "Snowmobile raceway maintenance", "category": "Snowmobile Racing"},
+            {"title": "Building the circuit", "category": "Motorsport"},
+        )
+        for item in examples:
+            with self.subTest(item=item):
+                self.assertEqual(classify_live_candidate(item), (False, "non_race_support_activity"))
 
     def test_keeps_physical_motorsport_stream(self):
         item = {
@@ -39,6 +56,28 @@ class LiveCandidateFilterTests(unittest.TestCase):
         self.assertEqual(classify_live_candidate(item), (True, None))
 
 
+class KickDiagnosticTests(unittest.TestCase):
+    def test_distinguishes_oauth_403_and_includes_cloudflare_ray(self):
+        headers = Message()
+        headers["CF-Ray"] = "example-ray-id"
+        error = HTTPError(
+            "https://id.kick.com/oauth/token", 403, "Forbidden", headers,
+            io.BytesIO(b"<html><title>Forbidden</title><body>Access denied</body></html>"),
+        )
+        with patch("collectors.kick.urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "Kick OAuth token endpoint returned HTTP 403") as caught:
+                kick._request_json("https://id.kick.com/oauth/token", context="OAuth token endpoint")
+        self.assertIn("Cloudflare Ray ID: example-ray-id", str(caught.exception))
+
+    def test_distinguishes_kick_api_endpoint_403(self):
+        error = HTTPError(
+            "https://api.kick.com/public/v2/categories", 403, "Forbidden", Message(),
+            io.BytesIO(b'{"message":"Access denied"}'),
+        )
+        with patch("collectors.kick.urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "Kick API endpoint /public/v2/categories returned HTTP 403") as caught:
+                kick._request_json("https://api.kick.com/public/v2/categories", context="API endpoint /public/v2/categories")
+        self.assertIn("Access denied", str(caught.exception))
 
 
 if __name__ == "__main__":
