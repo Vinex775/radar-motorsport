@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -154,14 +154,34 @@ def event_status(event: dict[str, Any], now: datetime | None = None) -> str:
     return "past"
 
 
-def dashboard_data() -> dict[str, Any]:
+def dashboard_data(local_tz: tzinfo | None = None) -> dict[str, Any]:
+    """Return Schedule & Events with all YouTube broadcasts dated today kept out of it.
+
+    The browser's local timezone is passed from app.py so this tab uses the
+    same midnight boundary as Live Now & Today.
+    """
     now = datetime.now(timezone.utc)
+    if local_tz is None:
+        local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+    local_day = now.astimezone(local_tz).date()
+
     db.purge_irrelevant_discoveries()
     all_events = db.get_events()
     for event in all_events:
         event["status"] = event_status(event, now)
-    upcoming_events = [event for event in all_events if event["status"] == "upcoming"]
+
+    upcoming_events = []
+    for event in all_events:
+        if event["status"] != "upcoming":
+            continue
+        if event.get("source") == "youtube_scheduled":
+            start = _parse_dt(event.get("start_utc"))
+            if start and start.astimezone(local_tz).date() <= local_day:
+                # Same-day YouTube broadcasts belong exclusively to Live Now & Today.
+                continue
+        upcoming_events.append(event)
     upcoming_events.sort(key=lambda event: event.get("start_utc") or "")
+
     stored_discoveries = db.get_discoveries()
     discoveries = [item for item in stored_discoveries if item.get("lead_status") == "upcoming_lead"]
     return {
@@ -169,4 +189,5 @@ def dashboard_data() -> dict[str, Any]:
         "search_presets": load_search_presets(),
         "stats": {"live": 0, "upcoming": len(upcoming_events), "leads": len(discoveries)},
         "last_refresh": db.get_setting("last_refresh"), "now": now.isoformat(),
+        "local_date": local_day.isoformat(),
     }

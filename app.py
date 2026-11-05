@@ -4,10 +4,11 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from zoneinfo import ZoneInfo
 
 import db
 import radar
@@ -23,6 +24,30 @@ ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 TEMPLATE = ROOT / "templates" / "index.html"
 ACCESS_VALUES = {"free", "subscription", "ppv", "unknown"}
+
+
+def _browser_timezone(request_target: str):
+    """Resolve the browser's timezone, falling back to its current UTC offset.
+
+    The IANA name handles daylight-saving transitions when tzdata is available.
+    The numeric offset works on Windows even when the OS has no IANA timezone DB.
+    """
+    query = parse_qs(urlparse(request_target).query)
+    zone_name = (query.get("time_zone") or [""])[0].strip()
+    if zone_name and len(zone_name) <= 80:
+        try:
+            return ZoneInfo(zone_name)
+        except Exception:
+            pass
+
+    raw_offset = (query.get("utc_offset_minutes") or [""])[0]
+    try:
+        utc_minus_local_minutes = int(raw_offset)
+    except (TypeError, ValueError):
+        return None
+    if not -840 <= utc_minus_local_minutes <= 840:
+        return None
+    return timezone(timedelta(minutes=-utc_minus_local_minutes))
 
 
 def valid_http_url(value: str | None) -> bool:
@@ -80,7 +105,7 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.5.3"
+    server_version = "APEX-Motorsport-Radar/1.5.7"
 
     def log_message(self, format: str, *args) -> None:
         if args and str(args[1]).startswith("4"):
@@ -111,14 +136,36 @@ class RadarHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             try:
-                # Load the same-day scheduled-broadcast UI helper after app.js.
-                # The helper extends the existing Live Now and Schedule views
-                # without changing the four-tab HTML structure.
+                # Send the browser's local timezone with dashboard/live API calls.
+                # This script must run before app.js starts its first fetch.
                 page = TEMPLATE.read_bytes()
                 app_script = b'<script src="/static/app.js"></script>'
                 helper_script = b'<script src="/static/live-today.js"></script>'
-                if app_script in page and helper_script not in page:
-                    page = page.replace(app_script, app_script + helper_script, 1)
+                timezone_script = b'''<script>
+(() => {
+  const nativeFetch = window.fetch.bind(window);
+  const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  const utcOffsetMinutes = new Date().getTimezoneOffset();
+  window.fetch = (input, init) => {
+    if (typeof input === 'string') {
+      try {
+        const url = new URL(input, window.location.href);
+        if (url.origin === window.location.origin && ['/api/dashboard', '/api/live-now', '/api/youtube-live'].includes(url.pathname)) {
+          if (browserTimeZone) url.searchParams.set('time_zone', browserTimeZone);
+          url.searchParams.set('utc_offset_minutes', String(utcOffsetMinutes));
+          input = url.toString();
+        }
+      } catch (_) { /* Preserve the original request if URL parsing fails. */ }
+    }
+    return nativeFetch(input, init);
+  };
+})();
+</script>'''
+                if app_script in page:
+                    if timezone_script not in page:
+                        page = page.replace(app_script, timezone_script + app_script, 1)
+                    if helper_script not in page:
+                        page = page.replace(app_script, app_script + helper_script, 1)
                 self._send(200, page, "text/html; charset=utf-8")
             except OSError:
                 self._json(500, {"error": "Dashboard template not found."})
@@ -133,9 +180,9 @@ class RadarHandler(BaseHTTPRequestHandler):
             charset = "; charset=utf-8" if content_type.startswith(("text/", "application/javascript")) else ""
             self._send(200, file_path.read_bytes(), content_type + charset)
         elif path == "/api/dashboard":
-            self._json(200, radar.dashboard_data())
+            self._json(200, radar.dashboard_data(local_tz=_browser_timezone(self.path)))
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.3"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.7"})
         elif path == "/api/sources":
             self._json(200, {"sources": radar.load_watch_sources()})
         elif path == "/api/discover-search":
@@ -154,7 +201,7 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path in {"/api/youtube-live", "/api/live-now"}:
             query = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip() or "motorsport"
             try:
-                self._json(200, search_all_live_streams(query))
+                self._json(200, search_all_live_streams(query, local_tz=_browser_timezone(self.path)))
             except RuntimeError as exc:
                 self._json(502, {"mode": "live_now", "error": str(exc), "items": [], "platforms": {}})
         else:
