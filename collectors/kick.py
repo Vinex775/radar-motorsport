@@ -10,37 +10,65 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from collectors.discovery import is_motorsport_result, is_reaction_or_commentary
+from collectors.live_filter import VIDEO_GAME_TITLE_RE
 
 TOKEN_URL = "https://id.kick.com/oauth/token"
 API_BASE = "https://api.kick.com"
 CATEGORY_NAMES = (
     "Motorsports", "Motorsport", "Auto Racing", "Racing", "Karting", "Rally",
     "Motocross", "Speedway", "Drifting", "Drag Racing", "Hillclimb", "Enduro",
-    "Sim Racing", "Autosuunnistus", "Folkrace", "Rallisprint", "Stock Car",
-    "Tractor Pulling", "iRacing", "Gran Turismo", "Forza Motorsport", "Assetto Corsa",
-)
-SIM_RACING_RE = re.compile(
-    r"\b(?:sim racing|simracing|iracing|assetto corsa|gran turismo|forza motorsport|"
-    r"automobilista|rfactor(?:\s?2)?|race room|raceroom)\b", re.IGNORECASE
+    "Autosuunnistus", "Folkrace", "Rallisprint", "Stock Car", "Tractor Pulling",
 )
 _TOKEN: str | None = None
 _TOKEN_EXPIRES = 0.0
 _TOKEN_CREDENTIALS: tuple[str, str] | None = None
 
 
-def _request_json(url: str, headers: dict | None = None, data: bytes | None = None) -> dict:
-    request = Request(url, headers=headers or {}, data=data)
+def _error_detail(exc: HTTPError) -> tuple[str, str | None]:
+    """Extract safe diagnostic details without exposing credentials or URLs."""
+    try:
+        raw = exc.read(2048).decode("utf-8", errors="replace")
+    except Exception:
+        raw = ""
+    detail = ""
+    try:
+        payload = json.loads(raw)
+        detail = str(payload.get("message") or payload.get("error_description") or payload.get("error") or "")
+    except (ValueError, AttributeError):
+        # Cloudflare may return HTML instead of the API's JSON error object.
+        clean = re.sub(r"<[^>]+>", " ", raw)
+        clean = re.sub(r"\s+", " ", clean).strip()
+        if clean:
+            detail = clean[:180]
+    cf_ray = None
+    try:
+        cf_ray = exc.headers.get("CF-Ray") if exc.headers else None
+    except AttributeError:
+        pass
+    return detail, cf_ray
+
+
+def _request_json(
+    url: str,
+    headers: dict | None = None,
+    data: bytes | None = None,
+    context: str = "API request",
+) -> dict:
+    request_headers = {"Accept": "application/json", **(headers or {})}
+    request = Request(url, headers=request_headers, data=data)
     try:
         with urlopen(request, timeout=18) as response:
             return json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        try:
-            detail = json.loads(exc.read().decode("utf-8")).get("message") or ""
-        except (ValueError, AttributeError):
-            detail = ""
-        raise RuntimeError(detail or f"Kick API returned HTTP {exc.code}.") from exc
+        detail, cf_ray = _error_detail(exc)
+        message = f"Kick {context} returned HTTP {exc.code}."
+        if detail:
+            message += f" Provider detail: {detail}"
+        if cf_ray:
+            message += f" Cloudflare Ray ID: {cf_ray}."
+        raise RuntimeError(message) from exc
     except (URLError, TimeoutError, OSError, ValueError) as exc:
-        raise RuntimeError(f"Could not query Kick: {exc}") from exc
+        raise RuntimeError(f"Could not query Kick ({context}): {exc}") from exc
 
 
 def _credentials() -> tuple[str, str]:
@@ -61,10 +89,11 @@ def _app_token(client_id: str, client_secret: str) -> str:
         TOKEN_URL,
         {"Content-Type": "application/x-www-form-urlencoded"},
         body,
+        context="OAuth token endpoint",
     )
     token = payload.get("access_token")
     if not token:
-        raise RuntimeError("Kick did not return an app access token.")
+        raise RuntimeError("Kick OAuth token endpoint did not return an app access token.")
     _TOKEN = token
     _TOKEN_CREDENTIALS = credentials
     _TOKEN_EXPIRES = time.monotonic() + int(payload.get("expires_in", 3600))
@@ -75,6 +104,7 @@ def _api_get(path: str, params: list[tuple[str, str]], token: str) -> dict:
     return _request_json(
         f"{API_BASE}{path}?{urlencode(params)}",
         {"Authorization": f"Bearer {token}", "User-Agent": "APEX-Motorsport-Radar"},
+        context=f"API endpoint {path}",
     )
 
 
@@ -87,7 +117,10 @@ CATEGORY_LABEL_RE = re.compile(
 
 
 def _is_motorsport(value: str) -> bool:
-    return bool(CATEGORY_LABEL_RE.fullmatch(value.strip())) or is_motorsport_result(value, "") or bool(SIM_RACING_RE.search(value))
+    clean = value.strip()
+    if VIDEO_GAME_TITLE_RE.search(clean):
+        return False
+    return bool(CATEGORY_LABEL_RE.fullmatch(clean)) or is_motorsport_result(clean, "")
 
 
 def search_live_streams(max_results: int = 300) -> dict:
@@ -104,7 +137,6 @@ def search_live_streams(max_results: int = 300) -> dict:
     token = _app_token(client_id, client_secret)
     categories_by_id: dict[str, dict] = {}
     # The API accepts comma-separated names and constrains the query length.
-    # Keep each request comfortably below that limit.
     category_batches: list[list[str]] = []
     current_batch: list[str] = []
     for name in CATEGORY_NAMES:
@@ -129,10 +161,7 @@ def search_live_streams(max_results: int = 300) -> dict:
 
     params: list[tuple[str, str]] = [("limit", "1000")]
     params.extend(("category_id", item["id"]) for item in relevant_categories[:25])
-    # If Kick has no matching category labels, a broad active-stream page is
-    # still useful: titles can identify local series and unofficial categories.
-    # Kick sorts this endpoint oldest-first, so paginate and sort the matches
-    # newest-first locally. Ten pages cap the scan at 10,000 live channels.
+    # Kick sorts this endpoint oldest-first, so paginate and sort matches newest-first.
     streams: list[dict] = []
     cursor = None
     pages_scanned = 0
@@ -157,7 +186,7 @@ def search_live_streams(max_results: int = 300) -> dict:
         channel = stream.get("channel") or {}
         username = str(user.get("username") or channel.get("slug") or "")
         tags = " ".join(stream.get("tags") or [])
-        if not ( _is_motorsport(category_name) or is_motorsport_result(title, tags) or SIM_RACING_RE.search(title) ):
+        if not (_is_motorsport(category_name) or is_motorsport_result(title, tags)):
             continue
         if is_reaction_or_commentary(title, tags):
             continue
@@ -179,13 +208,9 @@ def search_live_streams(max_results: int = 300) -> dict:
             "status": "live_now",
             "is_verified_live": True,
             "verification": "Kick Public API active livestream endpoint",
-            "note": "Kick confirms that this channel is live. Open it to verify that it is showing a motorsport session rather than commentary or another related stream.",
+            "note": "Kick confirms that this channel is live. APEX filters out known replays, games, and support activity; open the stream to verify the actual race feed.",
         }
-    ordered = sorted(
-        items.values(),
-        key=lambda item: str(item.get("started_at") or ""),
-        reverse=True,
-    )
+    ordered = sorted(items.values(), key=lambda item: str(item.get("started_at") or ""), reverse=True)
     return {
         "configured": True,
         "items": ordered[:max_results],

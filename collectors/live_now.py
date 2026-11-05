@@ -34,7 +34,7 @@ def _run_cached(source: str, query_key: str, fetch: Callable[[], dict]) -> dict:
 
 
 def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -> dict:
-    """Scan configured APIs and exclude obvious replays and video-game streams."""
+    """Scan configured APIs and exclude replays, games, and non-race activity."""
     clean_query = (query or "motorsport").strip()[:180] or "motorsport"
     global_scan = clean_query.lower() in {"motorsport", "all", "all motorsport", "live now"}
     youtube_key = "global" if global_scan else clean_query.casefold()
@@ -59,7 +59,11 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                 value = future.result()
                 items = value.get("items") or []
                 kept_count = 0
-                rejected = {"replay_or_loop": 0, "video_game": 0}
+                rejected = {
+                    "replay_or_loop": 0,
+                    "video_game": 0,
+                    "non_race_support_activity": 0,
+                }
                 for item in items:
                     keep, reason = classify_live_candidate(item)
                     if not keep:
@@ -76,8 +80,9 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
                 base_message = value.get("message") or value.get("error") or ("Connected" if value.get("configured") else "Not configured")
                 if filtered_count:
                     base_message = (
-                        f"{base_message}. Excluded {rejected['replay_or_loop']} replay/loop "
-                        f"and {rejected['video_game']} video-game stream(s)."
+                        f"{base_message}. Excluded {rejected['replay_or_loop']} replay/loop, "
+                        f"{rejected['video_game']} video-game, and "
+                        f"{rejected['non_race_support_activity']} non-race support stream(s)."
                     )
                 platforms[source] = {
                     "configured": bool(value.get("configured")),
@@ -123,7 +128,7 @@ def search_all_live_streams(query: str = "motorsport", max_results: int = 300) -
         },
         "note": (
             "Platform APIs confirm that each listed channel is broadcasting now. "
-            "APEX excludes obvious replay/loop streams and video-game broadcasts from Live Now. "
+            "APEX excludes obvious replay/loop streams, video-game broadcasts, and track-construction or similar support activity. "
             "The APIs do not inspect video frames, so an unclear stream can still require manual verification. "
             "Access price and territorial availability must be checked at the destination platform."
         ),
