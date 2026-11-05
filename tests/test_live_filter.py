@@ -35,6 +35,20 @@ class LiveCandidateFilterTests(unittest.TestCase):
             with self.subTest(item=item):
                 self.assertEqual(classify_live_candidate(item), (False, "video_game"))
 
+    def test_rejects_ps1_racing_games_and_racing_lagoon(self):
+        item = {"title": "PS1 Racing Games! [ENG/KHM]", "category": "Racing Lagoon"}
+        self.assertEqual(classify_live_candidate(item), (False, "video_game"))
+
+    def test_rejects_generic_game_wording_even_when_category_is_racing(self):
+        examples = (
+            {"title": "Classic racing games from the PS2 era", "category": "Racing"},
+            {"title": "PlayStation 1 retro gaming", "category": "Auto Racing"},
+            {"title": "Playing games tonight", "category": "Racing"},
+        )
+        for item in examples:
+            with self.subTest(item=item):
+                self.assertEqual(classify_live_candidate(item), (False, "video_game"))
+
     def test_rejects_generic_racing_category_without_event_evidence(self):
         self.assertEqual(
             classify_live_candidate({"title": "Just hanging out", "category": "Auto Racing"}),

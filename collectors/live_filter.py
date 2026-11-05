@@ -16,19 +16,25 @@ REPLAY_LOOP_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Explicit game names that frequently appear as Twitch/Kick categories or titles.
 VIDEO_GAME_TITLE_RE = re.compile(
     r"\b(?:forza(?:\s+(?:motorsport|horizon))?|sonic\s+racing(?:\s*:\s*crossworlds)?|"
-    r"motorsport\s+manager|racing\s+master|descent|gran\s+turismo(?:\s*\d+)?|assetto\s+corsa|"
-    r"i[ -]?racing|automobilista(?:\s*2)?|rfactor(?:\s*2)?|race\s*room|raceroom|"
+    r"motorsport\s+manager|racing\s+master|racing\s+lagoon|descent|"
+    r"gran\s+turismo(?:\s*\d+)?|assetto\s+corsa|i[ -]?racing|"
+    r"automobilista(?:\s*2)?|rfactor(?:\s*2)?|race\s*room|raceroom|"
     r"project\s+cars|need\s+for\s+speed|wreckfest|beamng(?:\s+drive)?|"
     r"trackmania|the\s+crew(?:\s+motorfest)?|carx\s+drift|f1\s+\d{2}\s+game)\b",
     re.IGNORECASE,
 )
 
+# Broader wording catches streams whose category is a game title not yet listed
+# above, e.g. "PS1 Racing Games!" in the category "Racing Lagoon".
 GAMEPLAY_CUE_RE = re.compile(
-    r"\b(?:gameplay|video\s+game|gaming|game\s+stream|playing\s+game|"
-    r"career\s+mode|multiplayer|ranked\s+match|esports?|e[ -]?sports|"
-    r"sim\s*racing|simracing|simulator\s+game|speedrun|gameplay\s+live)\b",
+    r"\b(?:gameplay|video\s+games?|gaming|game\s+stream|playing\s+games?|"
+    r"racing\s+games?|race\s+games?|career\s+mode|multiplayer|ranked\s+match|"
+    r"esports?|e[ -]?sports|sim\s*racing|simracing|simulator\s+game|"
+    r"speedrun|gameplay\s+live|ps[1-5]|playstation(?:\s*[1-5])?|"
+    r"retro\s+gaming|retro\s+games?|console\s+gaming)\b",
     re.IGNORECASE,
 )
 
@@ -48,16 +54,15 @@ GENERIC_RACING_CATEGORY_RE = re.compile(
 )
 
 # These cues describe an identifiable real-world race, championship, session,
-# venue or event. Generic words such as "live" or "racing" are intentionally
-# insufficient on their own.
-    
+# venue or event. Generic words such as "live" or "racing" are insufficient.
 PHYSICAL_RACE_EVIDENCE_RE = re.compile(
-    r"\b(?:championship|championships|series|grand prix|\bgp\b|formula\s?[1-4e]|f[1-4]|formula regional|dakar|wrc|erc|wec|imsa|"
-    r"nascar|indycar|motogp|moto2|moto3|worldsbk|mxgp|supercross|nhra|dtm|btcc|tcr|"
-    r"gt3|gt4|world challenge|world of outlaws|sprint cars?|late models?|midgets?|"
-    r"karting|kart race|rally|rallycross|rally raid|drift masters|formula drift|hillclimb|"
-    r"qualifying|practice|free practice|hyperpole|special stage|stage\s*\d+|time attack|"
-    r"race weekend|dirt track|cup|trophy)\b",
+    r"\b(?:championship|championships|series|grand prix|gp|formula\s?[1-4e]|f[1-4]|"
+    r"formula regional|dakar|wrc|erc|wec|imsa|nascar|indycar|motogp|moto2|moto3|"
+    r"worldsbk|mxgp|supercross|nhra|dtm|btcc|tcr|gt3|gt4|world challenge|"
+    r"world of outlaws|sprint cars?|late models?|midgets?|karting|kart race|"
+    r"rally|rallycross|rally raid|drift masters|formula drift|hillclimb|"
+    r"qualifying|practice|free practice|hyperpole|special stage|stage\s*\d+|"
+    r"time attack|race weekend|dirt track|cup|trophy)\b",
     re.IGNORECASE,
 )
 
@@ -73,16 +78,14 @@ def classify_live_candidate(item: dict[str, Any]) -> tuple[bool, str | None]:
 
     if REPLAY_LOOP_RE.search(content):
         return False, "replay_or_loop"
-    if VIDEO_GAME_TITLE_RE.search(content):
-        return False, "video_game"
-    if GAMEPLAY_CUE_RE.search(title):
+    if VIDEO_GAME_TITLE_RE.search(content) or GAMEPLAY_CUE_RE.search(content):
         return False, "video_game"
     if NON_RACE_SUPPORT_RE.search(title):
         return False, "non_race_support_activity"
 
-    # Twitch's generic "Racing" category contains unrelated games and personal
-    # streams (e.g. the user-submitted jahn3369 / "descent" example). Require
-    # explicit event/series/session evidence in title, description or tags.
+    # Generic Racing categories and ambiguous category names containing
+    # "racing" need explicit real-world event evidence in title/description/tags.
+    # Known game names were rejected above before reaching this check.
     if GENERIC_RACING_CATEGORY_RE.fullmatch(category.strip()):
         evidence = " ".join((title, description, tags))
         if not PHYSICAL_RACE_EVIDENCE_RE.search(evidence):
