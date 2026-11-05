@@ -106,7 +106,16 @@
     state.todayBroadcasts = (data.items || []).filter(item =>
       item.status === 'scheduled_today' || item.status === 'start_time_passed'
     );
-    const result = originalRenderLiveNow(data);
+
+    // The scheduled-broadcast collector is part of YouTube's background
+    // discovery, not a separate platform. Keep a single YouTube status line.
+    const displayData = {
+      ...data,
+      platforms: Object.fromEntries(
+        Object.entries(data.platforms || {}).filter(([name]) => name !== 'YouTube scheduled')
+      ),
+    };
+    const result = originalRenderLiveNow(displayData);
 
     const eyebrow = document.querySelector('#panel-live .section-heading .eyebrow');
     const title = document.querySelector('#panel-live .section-heading h2');
@@ -148,12 +157,6 @@
       const scheduled = Number(data.scheduled_today_count || 0);
       const passed = Number(data.start_time_passed_count || 0);
       heading.textContent = `${active} LIVE NOW · ${scheduled} STARTING LATER TODAY · ${passed} START TIMES PASSED / VERIFY`;
-    }
-    const scheduledStatus = (data.platforms || {})['YouTube scheduled'];
-    if (scheduledStatus && Number(scheduledStatus.future_broadcast_count || 0)) {
-      const scheduledTag = Array.from(document.querySelectorAll('#platform-results .platform-source'))
-        .find(tag => tag.textContent.toLowerCase().includes('youtube scheduled'));
-      if (scheduledTag) scheduledTag.textContent += ` · ${Number(scheduledStatus.future_broadcast_count)} later in Schedule`;
     }
     const empty = document.querySelector('#platform-results .platform-empty');
     if (empty && !data.count) empty.textContent = 'No active broadcasts or YouTube livestreams scheduled for today were found. Tomorrow and later are listed in Schedule & Events.';
