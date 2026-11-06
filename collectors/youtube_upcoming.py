@@ -14,6 +14,8 @@ from urllib.parse import urlencode
 from collectors.discovery import is_motorsport_result, is_reaction_or_commentary
 from collectors.live_filter import classify_live_candidate
 from collectors.youtube import SEARCH_API, _request_json, _video_details
+from collectors.youtube_channels import collect_monitored_channel_videos
+from collectors.youtube_channel_discovery import build_channel_discovery_leads
 
 GLOBAL_UPCOMING_QUERY = (
     "motorsport|racing|F1|Formula 1|Porsche Cup|Carrera Cup|Sprint Challenge|"
@@ -32,14 +34,7 @@ SPECIALIST_SERIES_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Official channel IDs are more reliable than global search ranking. Add new
-# entries only after verifying that the channel belongs to the championship.
-OFFICIAL_UPCOMING_CHANNELS = (
-    {
-        "channel_id": "UCwiRFcstDPKaCiOTXuoFhrQ",
-        "name": "Porsche Cup Brasil",
-    },
-)
+# Permanent official channels are maintained in data/monitored_sources.json.
 
 # One-time bootstrap from the official Porsche Cup broadcast page supplied by
 # the user. This preserves the 5 Nov 2026 programme even when YouTube stops
@@ -134,6 +129,7 @@ def search_upcoming_videos(
             "configured": False,
             "items": [],
             "future_events": [],
+            "source_leads": [],
             "source": "youtube_upcoming",
             "message": "Set YOUTUBE_API_KEY to discover scheduled YouTube broadcasts.",
         }
@@ -144,43 +140,30 @@ def search_upcoming_videos(
     if len(clean_query) > 500:
         clean_query = clean_query[:500]
 
-    # Query official channels independently of global search relevance. A
-    # channel query has no q restriction: all upcoming broadcasts from that
-    # verified championship channel can be inspected and classified.
-    prioritized_items: dict[str, dict] = {}
-    official_search_results = 0
-    channel_search_errors: list[str] = []
-    for channel in OFFICIAL_UPCOMING_CHANNELS:
-        try:
-            channel_items = _search_upcoming(
-                api_key,
-                max_results,
-                channel_id=channel["channel_id"],
-            )
-            official_search_results += len(channel_items)
-            for item in channel_items:
-                video_id = str((item.get("id") or {}).get("videoId") or "")
-                if video_id:
-                    prioritized_items[video_id] = item
-        except RuntimeError as exc:
-            # An individual official channel must not disable global discovery.
-            channel_search_errors.append(f"{channel['name']}: {exc}")
-
+    # Read recent uploads from permanent official channels using low-quota Atom feeds.
+    # The video API still verifies liveBroadcastContent and scheduledStartTime.
+    channel_items, official_channels_scanned, channel_search_errors = collect_monitored_channel_videos(api_key)
     global_items = _search_upcoming(api_key, max_results, query=clean_query)
-    search_items_by_id = dict(prioritized_items)
-    for item in global_items:
+
+    search_items_by_id: dict[str, dict] = {}
+    for item in channel_items + global_items:
         video_id = str((item.get("id") or {}).get("videoId") or "")
         if video_id and video_id not in search_items_by_id:
             search_items_by_id[video_id] = item
 
-    # Detail lookups are limited to 50 IDs per request. The official channel
-    # results are inserted first so they retain priority within that limit.
-    search_items = list(search_items_by_id.values())[:max(1, min(int(max_results), 50))]
+    # Keep enough room for scheduled videos published by every monitored channel.
+    item_limit = max(50, min(250, int(max_results) * 4))
+    search_items = list(search_items_by_id.values())[:item_limit]
     video_ids = [
         str((item.get("id") or {}).get("videoId") or "")
         for item in search_items
     ]
-    details = _video_details([value for value in video_ids if value], api_key)
+    details: dict[str, dict] = {}
+    for offset in range(0, len(video_ids), 50):
+        details.update(_video_details(video_ids[offset:offset + 50], api_key))
+
+    # New calendar/season announcements on trusted channels become Discovery Leads.
+    source_leads = build_channel_discovery_leads(channel_items, details)
 
     if now is None:
         local_now = datetime.now().astimezone()
@@ -253,7 +236,7 @@ def search_upcoming_videos(
                 "scheduled_future"
             ),
             "is_verified_live": broadcast_state == "live",
-            "verification": "YouTube Data API eventType=upcoming + official channel search + videos.list scheduledStartTime",
+            "verification": "YouTube Data API eventType=upcoming + monitored official channel Atom feeds + videos.list scheduledStartTime",
             "note": (
                 "YouTube reports this broadcast as live. Verify that the player is showing the actual race feed."
                 if broadcast_state == "live" else
@@ -308,15 +291,16 @@ def search_upcoming_videos(
         "configured": True,
         "items": today_items,
         "future_events": future_events,
+        "source_leads": source_leads,
         "source": "youtube_upcoming",
         "query": clean_query,
-        "search_results": len(global_items) + official_search_results,
+        "search_results": len(global_items) + len(channel_items),
         "scheduled_today_count": sum(item.get("status") == "scheduled_today" for item in today_items),
         "start_time_passed_count": sum(item.get("status") == "start_time_passed" for item in today_items),
         "active_count": sum(item.get("status") == "live_now" for item in today_items),
         "future_broadcast_count": len(future_events),
-        "official_channels_scanned": len(OFFICIAL_UPCOMING_CHANNELS) - len(channel_search_errors),
+        "official_channels_scanned": official_channels_scanned,
     }
     if channel_search_errors:
-        result["message"] = "Some official channel searches failed: " + " | ".join(channel_search_errors)
+        result["message"] = "Some official channel feeds failed: " + " | ".join(channel_search_errors)
     return result

@@ -16,11 +16,11 @@ from collectors.youtube import search_live_videos
 from collectors.youtube_upcoming import search_upcoming_videos
 
 # Daily YouTube search.list budget:
-# - Active streams: every 20 min = about 72 calls/day.
-# - Upcoming streams: global + one verified official channel every 120 min
-#   = about 24 calls/day. Combined estimate: 96 calls/day, below the default
-#   100-call daily allowance. Do not add more channel searches without
-#   increasing this TTL or reducing the active scan frequency.
+# - Active streams: every 20 min = about 72 global search.list calls/day.
+# - Upcoming streams: one global search.list call every 120 min. Registered
+#   official channels are checked through public Atom feeds and videos.list
+#   enrichment, avoiding one 100-unit search.list call per channel.
+# Keep these TTLs conservative to respect the default daily API allowance.
 SOURCE_TTLS = {
     "YouTube": 20 * 60,
     "YouTube scheduled": 120 * 60,
@@ -195,6 +195,7 @@ def search_all_live_streams(
     results: list[dict] = []
     today_candidates: list[dict] = []
     future_events: list[dict] = []
+    channel_discoveries: list[dict] = []
     platforms: dict[str, dict] = {}
     collectors = {
         "YouTube": (lambda: search_live_videos("motorsport" if global_scan else clean_query, max_results=50), youtube_key),
@@ -216,6 +217,8 @@ def search_all_live_streams(
             try:
                 value = future.result()
                 items = value.get("items") or []
+                if source == "YouTube scheduled":
+                    channel_discoveries.extend(value.get("source_leads") or [])
                 kept_count = 0
                 rejected = {
                     "replay_or_loop": 0,
@@ -285,6 +288,14 @@ def search_all_live_streams(
                     "cached": False,
                     "message": f"{type(exc).__name__}: {exc}",
                 }
+
+    # Save upcoming calendar/season announcements from monitored official channels.
+    # A database hiccup here must not interrupt the live/schedule pipeline.
+    if channel_discoveries:
+        try:
+            db.save_discoveries(channel_discoveries)
+        except Exception:
+            pass
 
     # Persist future YouTube broadcasts in SQLite so Schedule & Events does
     # not depend on a temporary browser-only array. Stable external IDs make
