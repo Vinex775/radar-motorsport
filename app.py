@@ -105,7 +105,7 @@ def _manual_event(data: dict) -> tuple[dict | None, str | None]:
 
 
 class RadarHandler(BaseHTTPRequestHandler):
-    server_version = "APEX-Motorsport-Radar/1.5.7"
+    server_version = "APEX-Motorsport-Radar/1.5.8"
 
     def log_message(self, format: str, *args) -> None:
         if args and str(args[1]).startswith("4"):
@@ -182,9 +182,9 @@ class RadarHandler(BaseHTTPRequestHandler):
         elif path == "/api/dashboard":
             self._json(200, radar.dashboard_data(local_tz=_browser_timezone(self.path)))
         elif path == "/api/health":
-            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.7"})
+            self._json(200, {"ok": True, "app": "APEX Motorsport Radar", "version": "1.5.8"})
         elif path == "/api/sources":
-            self._json(200, {"sources": radar.load_watch_sources()})
+            self._json(200, {"sources": radar.load_watch_sources(), "monitored_sources": radar.load_monitored_sources()})
         elif path == "/api/discover-search":
             query = parse_qs(urlparse(self.path).query).get("q", [""])[0].strip()
             if len(query) < 2:

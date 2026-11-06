@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 from collectors.calendario_dtm import fetch_dtm_events as fetch_dtm_events_dtm
 from collectors.discovery import discover_broadcast_leads
 from collectors.official_schedule import fetch_official_schedule
+from collectors.monitored_sources import load_monitored_sources
+from collectors.monitored_discovery import discover_monitored_source_leads
 import db
 
 ROOT = Path(__file__).resolve().parent
@@ -64,6 +66,37 @@ def load_watch_sources() -> list[dict[str, Any]]:
     return sources
 
 
+def load_monitored_watch_partners() -> list[dict[str, Any]]:
+    # Show registered official broadcast partners without classifying them as organizers.
+    existing_urls = {
+        str(source.get("url") or "").rstrip("/")
+        for source in load_watch_sources()
+    }
+    results: list[dict[str, Any]] = []
+    for monitored in load_monitored_sources():
+        if monitored.get("confidence") != "official_partner":
+            continue
+        watch_url = str(monitored.get("watch_url") or "").strip()
+        if not watch_url or watch_url.rstrip("/") in existing_urls:
+            continue
+        series_values = monitored.get("series") or []
+        if isinstance(series_values, str):
+            series_values = [series_values]
+        results.append({
+            "id": f"monitored-{monitored['id']}",
+            "series": " / ".join(str(value) for value in series_values) or monitored["name"],
+            "region": monitored.get("region") or "Global",
+            "platform": monitored["name"],
+            "access": "unknown",
+            "url": watch_url,
+            "official_info": monitored.get("official_url") or monitored.get("calendar_url") or watch_url,
+            "note": monitored.get("notes") or "Official broadcast partner. Check event coverage and regional access.",
+            "confidence": "official_partner",
+        })
+        existing_urls.add(watch_url.rstrip("/"))
+    return results
+
+
 def load_search_presets() -> list[dict[str, Any]]:
     try:
         return json.loads(SEARCH_PRESETS_FILE.read_text(encoding="utf-8"))
@@ -86,10 +119,34 @@ def _run_official_schedule() -> tuple[list[dict], str | None]:
 
 
 def _run_discovery() -> tuple[list[dict], str | None]:
+    broad_records: list[dict] = []
+    monitored_records: list[dict] = []
+    errors: list[str] = []
     try:
-        return discover_broadcast_leads(), None
+        broad_records = discover_broadcast_leads()
     except Exception as exc:
-        return [], f"News discovery: {type(exc).__name__}: {exc}"
+        errors.append(f"Global discovery: {type(exc).__name__}: {exc}")
+    try:
+        monitored_records = discover_monitored_source_leads()
+    except Exception as exc:
+        errors.append(f"Official source monitoring: {type(exc).__name__}: {exc}")
+
+    # Each discovery path fails independently; a working path is still saved.
+    merged: dict[str, dict] = {}
+    for item in broad_records + monitored_records:
+        url = str(item.get("url") or "").strip()
+        if url:
+            merged[url] = item
+    records = sorted(
+        merged.values(),
+        key=lambda item: item.get("published") or "",
+        reverse=True,
+    )
+    if records:
+        return records[:150], None
+    if errors:
+        return [], "News discovery: " + " | ".join(errors)
+    return [], None
 
 
 def refresh_all() -> dict[str, Any]:
@@ -185,9 +242,16 @@ def dashboard_data(local_tz: tzinfo | None = None) -> dict[str, Any]:
     stored_discoveries = db.get_discoveries()
     discoveries = [item for item in stored_discoveries if item.get("lead_status") == "upcoming_lead"]
     return {
-        "events": upcoming_events, "discoveries": discoveries, "sources": load_watch_sources(),
+        "events": upcoming_events, "discoveries": discoveries,
+        "sources": load_watch_sources() + load_monitored_watch_partners(),
+        "monitored_sources": load_monitored_sources(),
         "search_presets": load_search_presets(),
-        "stats": {"live": 0, "upcoming": len(upcoming_events), "leads": len(discoveries)},
+        "stats": {
+            "live": 0,
+            "upcoming": len(upcoming_events),
+            "leads": len(discoveries),
+            "monitored_sources": len(load_monitored_sources()),
+        },
         "last_refresh": db.get_setting("last_refresh"), "now": now.isoformat(),
         "local_date": local_day.isoformat(),
     }
