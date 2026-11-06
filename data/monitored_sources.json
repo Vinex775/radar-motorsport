@@ -1,0 +1,649 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-11-05",
+  "description": "Permanent, season-independent registry of verified motorsport organizers, official channels, calendars and broadcast partners. Monitoring is role-specific: official sites feed future discovery; registered YouTube channels feed scheduled-broadcast discovery; watch-only partners remain references and are not treated as event organizers.",
+  "sources": [
+    {
+      "id": "porsche-cup-brasil",
+      "name": "Porsche Cup Brasil",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Brazil",
+      "series": [
+        "Porsche Carrera Cup Brasil",
+        "Porsche Sprint Challenge Brasil",
+        "Porsche Trophy Brasil"
+      ],
+      "official_url": "https://www.porsche.com/br/pt/motorsport/",
+      "calendar_url": "https://www.porsche.com/br/pt/motorsport/",
+      "channel_url": "https://www.youtube.com/channel/UCwiRFcstDPKaCiOTXuoFhrQ",
+      "youtube_channel": {
+        "channel_id": "UCwiRFcstDPKaCiOTXuoFhrQ"
+      },
+      "discovery_query": "site:porsche.com/br/pt/motorsport/ (\"Porsche Cup\" OR \"Carrera Cup\" OR \"Sprint Challenge\" OR \"Porsche Trophy\")",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "A mesma fonte oficial cobre Carrera Cup, Sprint Challenge e Trophy. Não cadastrar cada categoria como canal separado."
+    },
+    {
+      "id": "yamaha-racing-brasil",
+      "name": "Yamaha Racing Brasil",
+      "source_type": "manufacturer_and_series_organizer",
+      "confidence": "official",
+      "region": "Brazil / Latin America",
+      "series": [
+        "Yamalube R3 BLU CRU América Latina",
+        "Yamaha R15 BLU CRU América Latina",
+        "Yamaha motocross and rally programs"
+      ],
+      "official_url": "https://www.yamaha-motor.com.br/",
+      "calendar_url": "https://www.yamaha-motor.com.br/",
+      "channel_url": "https://www.youtube.com/channel/UCYlqvZhED8WtbW8TRAP2Opg",
+      "youtube_channel": {
+        "channel_id": "UCYlqvZhED8WtbW8TRAP2Opg"
+      },
+      "discovery_query": "site:yamaha-motor.com.br (\"Yamaha Racing Brasil\" OR \"R3 BLU CRU\" OR \"R15 BLU CRU\" OR \"BLU CRU\")",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Canal oficial que publicou transmissões e programação das categorias R3 e R15 BLU CRU."
+    },
+    {
+      "id": "cba-f4-brasil",
+      "name": "Confederação Brasileira de Automobilismo — F4 Brasil",
+      "source_type": "national_federation_and_championship",
+      "confidence": "official",
+      "region": "Brazil",
+      "series": [
+        "F4 Brasil"
+      ],
+      "official_url": "https://www.cba.org.br/",
+      "calendar_url": "https://www.cba.org.br/calendario",
+      "discovery_query": "site:cba.org.br (\"F4 Brasil\" OR \"Fórmula 4\" OR \"Formula 4\")",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Monitorar a entidade e o calendário oficial. Canal específico da categoria não foi incluído sem identificação inequívoca."
+    },
+    {
+      "id": "formula1",
+      "name": "Formula 1",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "Formula 1"
+      ],
+      "official_url": "https://www.formula1.com/",
+      "calendar_url": "https://www.formula1.com/en/racing/2027",
+      "channel_url": "https://www.youtube.com/@Formula1",
+      "youtube_channel": {
+        "handle": "@Formula1"
+      },
+      "discovery_query": "site:formula1.com (2027 OR 2028 OR calendar OR schedule OR announced OR race weekend)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Canal e calendário globais oficiais. A disponibilidade de transmissão é tratada separadamente por território."
+    },
+    {
+      "id": "fia-wec",
+      "name": "FIA World Endurance Championship",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "FIA WEC",
+        "Hypercar",
+        "LMGT3"
+      ],
+      "official_url": "https://www.fiawec.com/",
+      "calendar_url": "https://www.fiawec.com/en/calendar",
+      "channel_url": "https://www.youtube.com/@FIAWEC",
+      "youtube_channel": {
+        "handle": "@FIAWEC"
+      },
+      "watch_url": "https://plus.fiawec.com/",
+      "discovery_query": "site:fiawec.com (2027 OR 2028 OR calendar OR schedule OR entries OR announced OR race)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Acompanhar calendário, comunicados e canal oficial. FIAWEC+ é o destino de transmissão, sujeito a disponibilidade e direitos regionais."
+    },
+    {
+      "id": "motogp",
+      "name": "MotoGP",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "MotoGP",
+        "Moto2",
+        "Moto3"
+      ],
+      "official_url": "https://www.motogp.com/",
+      "calendar_url": "https://www.motogp.com/en/calendar",
+      "channel_url": "https://www.youtube.com/@MotoGP",
+      "youtube_channel": {
+        "handle": "@MotoGP"
+      },
+      "watch_url": "https://www.motogp.com/en/videopass",
+      "discovery_query": "site:motogp.com (2027 OR 2028 OR calendar OR schedule OR announced OR grand prix)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "O canal oficial é monitorado para transmissões programadas; VideoPass e parceiros permanecem referências de acesso."
+    },
+    {
+      "id": "supercars",
+      "name": "Repco Supercars Championship",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Australia / New Zealand / Global",
+      "series": [
+        "Supercars",
+        "Dunlop Super2",
+        "Trans Am and official support categories"
+      ],
+      "official_url": "https://www.supercars.com/",
+      "calendar_url": "https://www.supercars.com/events",
+      "channel_url": "https://www.youtube.com/@SupercarsChampionship",
+      "youtube_channel": {
+        "handle": "@SupercarsChampionship"
+      },
+      "watch_url": "https://www.supercars.com/watch-supercars-international",
+      "discovery_query": "site:supercars.com (2027 OR 2028 OR calendar OR schedule OR Sandown OR Bathurst OR announced)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Monitorar sessões de apoio anunciadas junto aos eventos, sem assumir que todo conteúdo do canal seja transmissão de corrida."
+    },
+    {
+      "id": "nascar",
+      "name": "NASCAR",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "NASCAR Cup Series",
+        "O'Reilly Auto Parts Series",
+        "Craftsman Truck Series"
+      ],
+      "official_url": "https://www.nascar.com/",
+      "calendar_url": "https://www.nascar.com/schedule/",
+      "channel_url": "https://www.youtube.com/@NASCAR",
+      "youtube_channel": {
+        "handle": "@NASCAR"
+      },
+      "watch_url": "https://www.nascar.com/nascar-channel/",
+      "discovery_query": "site:nascar.com (2027 OR 2028 OR schedule OR calendar OR announced OR entry list OR Homestead)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "O NASCAR Channel é um canal 24/7 com programas e reprises; sua atividade não é considerada prova de transmissão ao vivo de uma sessão."
+    },
+    {
+      "id": "nascar-brasil",
+      "name": "NASCAR Brasil Series",
+      "source_type": "national_championship",
+      "confidence": "official",
+      "region": "Brazil",
+      "series": [
+        "NASCAR Brasil Series"
+      ],
+      "official_url": "https://www.nascarbrasil.com.br/",
+      "calendar_url": "https://www.nascarbrasil.com.br/",
+      "watch_url": "https://www.nascarbrasil.com.br/transmissoes/",
+      "discovery_query": "site:nascarbrasil.com.br (2027 OR 2028 OR calendário OR programação OR próxima etapa OR transmissão)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Monitorar o site e a página oficial de transmissões. Canal de YouTube específico fica fora da coleta até ID confirmado."
+    },
+    {
+      "id": "world-of-outlaws",
+      "name": "World of Outlaws / Super DIRTcar Series",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States / Global",
+      "series": [
+        "World of Outlaws Sprint Cars",
+        "World of Outlaws Late Models",
+        "Super DIRTcar Series"
+      ],
+      "official_url": "https://worldofoutlaws.com/",
+      "calendar_url": "https://worldofoutlaws.com/schedule/",
+      "channel_url": "https://www.youtube.com/@WorldofOutlaws",
+      "youtube_channel": {
+        "handle": "@WorldofOutlaws"
+      },
+      "watch_url": "https://www.dirtvision.com/",
+      "discovery_query": "site:worldofoutlaws.com (2027 OR 2028 OR schedule OR calendar OR World Finals OR sprint cars OR late models)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "A organização é a fonte primária; DIRTVision é cadastrada separadamente como plataforma oficial de transmissão."
+    },
+    {
+      "id": "powri",
+      "name": "POWRi Racing",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States",
+      "series": [
+        "410 Outlaw Sprint League",
+        "Heartland Late Model Tour",
+        "USRA Modifieds and associated series"
+      ],
+      "official_url": "https://www.powri.com/",
+      "calendar_url": "https://www.powri.com/",
+      "discovery_query": "site:powri.com (2027 OR 2028 OR Deuces Wild OR schedule OR calendar OR entries OR sprint cars)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Fonte de calendário e anúncios das séries POWRi. Não foi atribuído um canal de YouTube sem validação do canal oficial."
+    },
+    {
+      "id": "fia-karting",
+      "name": "FIA Karting",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "FIA Karting World Championship",
+        "FIA Karting European Championship",
+        "Arrive & Drive"
+      ],
+      "official_url": "https://www.fiakarting.com/",
+      "calendar_url": "https://www.fiakarting.com/competition-list?year=2027",
+      "channel_url": "https://www.youtube.com/@fiakartingchampionship9818",
+      "youtube_channel": {
+        "handle": "@fiakartingchampionship9818"
+      },
+      "discovery_query": "site:fiakarting.com (2027 OR 2028 OR calendar OR competition OR championship OR entries)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Manter calendário da FIA Karting e canal oficial como fontes separadas, mas relacionadas."
+    },
+    {
+      "id": "adac-motorsports",
+      "name": "ADAC Motorsports",
+      "source_type": "championship_organizer_and_channel",
+      "confidence": "official",
+      "region": "Germany / International",
+      "series": [
+        "ADAC GT Masters",
+        "ADAC GT4 Germany",
+        "ADAC support series"
+      ],
+      "official_url": "https://www.adac-motorsport.de/",
+      "calendar_url": "https://www.adac-motorsport.de/",
+      "channel_url": "https://www.youtube.com/@ADACMotorsports",
+      "youtube_channel": {
+        "handle": "@ADACMotorsports"
+      },
+      "discovery_query": "site:adac-motorsport.de (2027 OR 2028 OR calendar OR schedule OR GT Masters OR GT4)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Canal oficial de automobilismo ADAC; verificar qual série está associada a cada anúncio."
+    },
+    {
+      "id": "gt-world-sro",
+      "name": "GT World / SRO Motorsports Group",
+      "source_type": "championship_organizer_and_channel",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "GT World Challenge America",
+        "GT World Challenge Europe",
+        "GT World Challenge Asia",
+        "SRO support series"
+      ],
+      "official_url": "https://www.sro-motorsports.com/",
+      "calendar_url": "https://www.gt-world-challenge-america.com/",
+      "channel_url": "https://www.youtube.com/@GTWorld",
+      "youtube_channel": {
+        "handle": "@GTWorld"
+      },
+      "discovery_query": "site:gt-world-challenge-america.com (2027 OR 2028 OR calendar OR schedule OR entries OR SRO)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "O canal GT World é a referência oficial de vídeos da SRO. Associar cada lead à série/continente correto."
+    },
+    {
+      "id": "imsa",
+      "name": "IMSA",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States / Global",
+      "series": [
+        "WeatherTech SportsCar Championship",
+        "Michelin Pilot Challenge",
+        "VP SportsCar Challenge",
+        "Porsche Carrera Cup North America"
+      ],
+      "official_url": "https://www.imsa.com/",
+      "calendar_url": "https://www.imsa.com/schedule/",
+      "channel_url": "https://www.youtube.com/@IMSAOfficial",
+      "youtube_channel": {
+        "handle": "@IMSAOfficial"
+      },
+      "watch_url": "https://www.imsa.com/tvlive/",
+      "discovery_query": "site:imsa.com (2027 OR 2028 OR schedule OR calendar OR entry list OR announced)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "O canal oficial também publica categorias de apoio e Porsche Carrera Cup North America. Direitos de vídeo variam por território."
+    },
+    {
+      "id": "dtm-adac",
+      "name": "DTM / ADAC",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Germany / Europe",
+      "series": [
+        "DTM",
+        "ADAC GT Masters and support series"
+      ],
+      "official_url": "https://www.dtm.com/",
+      "calendar_url": "https://www.dtm.com/en/calendar",
+      "channel_url": "https://www.youtube.com/@DTM",
+      "youtube_channel": {
+        "handle": "@DTM"
+      },
+      "watch_url": "https://www.dtm.com/live/live-on-tv",
+      "discovery_query": "site:dtm.com (2027 OR 2028 OR calendar OR schedule OR entries OR announced)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Acompanhar calendário DTM e canal oficial, sem atribuir automaticamente toda notícia ADAC ao DTM."
+    },
+    {
+      "id": "nhra",
+      "name": "NHRA",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States / Global",
+      "series": [
+        "Mission Foods Drag Racing Series",
+        "Lucas Oil Drag Racing Series"
+      ],
+      "official_url": "https://www.nhra.com/",
+      "calendar_url": "https://www.nhra.com/schedule",
+      "channel_url": "https://www.youtube.com/@NHRA",
+      "youtube_channel": {
+        "handle": "@NHRA"
+      },
+      "watch_url": "https://www.nhra.tv/",
+      "discovery_query": "site:nhra.com (2027 OR 2028 OR schedule OR calendar OR announced OR drag racing)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Distinguir programação de entrevistas/eventos promocionais de transmissões de pista."
+    },
+    {
+      "id": "indycar",
+      "name": "INDYCAR",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States / Global",
+      "series": [
+        "NTT INDYCAR SERIES",
+        "INDY NXT"
+      ],
+      "official_url": "https://www.indycar.com/",
+      "calendar_url": "https://www.indycar.com/schedule",
+      "channel_url": "https://www.youtube.com/@INDYCAR",
+      "youtube_channel": {
+        "handle": "@INDYCAR"
+      },
+      "watch_url": "https://www.indycar.com/how-to-follow/international/",
+      "discovery_query": "site:indycar.com (2027 OR 2028 OR schedule OR calendar OR announced OR entry list)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Canal oficial confirmado pela página How To Follow da INDYCAR."
+    },
+    {
+      "id": "worldsbk",
+      "name": "WorldSBK",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "WorldSBK",
+        "WorldSSP",
+        "WorldSPB"
+      ],
+      "official_url": "https://www.worldsbk.com/",
+      "calendar_url": "https://www.worldsbk.com/en/calendar",
+      "channel_url": "https://www.youtube.com/channel/UCeQf8mZkzUswAL42uQs84iA",
+      "youtube_channel": {
+        "channel_id": "UCeQf8mZkzUswAL42uQs84iA"
+      },
+      "watch_url": "https://www.worldsbk.com/en/news/2026/02/19/where-to-watch-worldsbk-throughout-the-2026-seasonx/989565",
+      "discovery_query": "site:worldsbk.com (2027 OR 2028 OR calendar OR schedule OR announced OR entries)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Canal oficial verificado. Distribuidores e VideoPass ficam condicionados à região e temporada."
+    },
+    {
+      "id": "formula-e",
+      "name": "Formula E",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "ABB FIA Formula E World Championship"
+      ],
+      "official_url": "https://www.fiaformulae.com/",
+      "calendar_url": "https://www.fiaformulae.com/en/calendar",
+      "watch_url": "https://www.fiaformulae.com/en/ways-to-watch",
+      "discovery_query": "site:fiaformulae.com (2027 OR 2028 OR calendar OR schedule OR announced OR entry list)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Acompanhar anúncios e calendário; canal não incluído sem handle oficial confirmado nesta revisão."
+    },
+    {
+      "id": "rally-tv-wrc-erc",
+      "name": "WRC / ERC / Rally.TV",
+      "source_type": "championship_and_broadcast_partner",
+      "confidence": "official",
+      "region": "Global — subject to territorial rights",
+      "series": [
+        "World Rally Championship",
+        "European Rally Championship"
+      ],
+      "official_url": "https://www.wrc.com/",
+      "calendar_url": "https://www.wrc.com/",
+      "watch_url": "https://www.rally.tv/en/getting-started",
+      "discovery_query": "site:wrc.com (2027 OR 2028 OR calendar OR schedule OR entries OR rally)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Rally.TV permanece como destino de transmissão; o organizador WRC é a fonte prioritária de anúncios."
+    },
+    {
+      "id": "dirtvision",
+      "name": "DIRTVision",
+      "source_type": "official_broadcast_partner",
+      "confidence": "official_partner",
+      "region": "United States / International access varies",
+      "series": [
+        "World of Outlaws",
+        "Super DIRTcar Series and associated dirt events"
+      ],
+      "official_url": "https://www.dirtvision.com/",
+      "calendar_url": "https://schedule.dirtvision.com/",
+      "watch_url": "https://www.dirtvision.com/",
+      "discovery_query": "site:dirtvision.com (2027 OR 2028 OR schedule OR calendar OR upcoming OR World Finals)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Parceiro oficial de transmissão de dirt racing; não é o organizador dos campeonatos."
+    },
+    {
+      "id": "s2ftv",
+      "name": "S2FTV / Start2Finish TV",
+      "source_type": "broadcast_partner",
+      "confidence": "official_partner",
+      "region": "United States",
+      "series": [
+        "POWRi 410 Outlaw Sprint League and selected events"
+      ],
+      "official_url": "https://s2ftv.com/",
+      "watch_url": "https://s2ftv.com/",
+      "discovery_query": "site:s2ftv.com (2027 OR 2028 OR schedule OR calendar OR upcoming OR sprint cars)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Parceiro de transmissão associado a eventos POWRi; não assumir que transmite todas as categorias POWRi."
+    },
+    {
+      "id": "racindirt",
+      "name": "RacinDirt",
+      "source_type": "broadcast_partner",
+      "confidence": "official_partner",
+      "region": "United States",
+      "series": [
+        "POWRi Heartland Late Model Tour and selected dirt events"
+      ],
+      "official_url": "https://www.racindirt.tv/",
+      "watch_url": "https://www.racindirt.tv/",
+      "discovery_query": "site:racindirt.tv (2027 OR 2028 OR schedule OR calendar OR upcoming OR Heartland Late Model)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Parceiro de transmissão da Heartland Late Model Tour; associar somente às categorias e eventos confirmados."
+    },
+    {
+      "id": "karting-sm-finland",
+      "name": "Karting SM / Finnish Karting Championship",
+      "source_type": "national_championship_and_watch_guide",
+      "confidence": "official",
+      "region": "Finland",
+      "series": [
+        "Karting SM"
+      ],
+      "official_url": "https://kartingsm.fi/",
+      "calendar_url": "https://kartingsm.fi/",
+      "watch_url": "https://kartingsm.fi/live",
+      "discovery_query": "site:kartingsm.fi (2027 OR 2028 OR calendar OR schedule OR kilpailukalenteri OR ilmoittautuminen)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Fonte oficial regional já presente no diretório Where to Watch."
+    },
+    {
+      "id": "smx-supercross",
+      "name": "Monster Energy Supercross / AMA Pro Motocross / SMX",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States / International",
+      "series": [
+        "Monster Energy AMA Supercross Championship",
+        "AMA Pro Motocross Championship",
+        "SMX World Championship"
+      ],
+      "official_url": "https://www.supercrosslive.com/",
+      "calendar_url": "https://www.supercross.com/pages/schedule",
+      "watch_url": "https://smxpass.com/247-live/",
+      "discovery_query": "site:supercrosslive.com (2027 OR 2028 OR schedule OR calendar OR announced OR entries OR Pro Motocross OR SMX)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Fonte oficial do campeonato e calendário. O Video Pass é um destino de transmissão separado; horários e acesso dependem da região."
+    },
+    {
+      "id": "fim-speedway",
+      "name": "FIM Speedway Grand Prix / Speedway World Championships",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "FIM Speedway Grand Prix",
+        "FIM Speedway of Nations",
+        "FIM SGP2 / Speedway U21"
+      ],
+      "official_url": "https://fimspeedway.com/",
+      "calendar_url": "https://fimspeedway.com/en",
+      "discovery_query": "site:fimspeedway.com (2027 OR 2028 OR calendar OR schedule OR announced OR Speedway GP OR Speedway of Nations)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Organizador oficial já anunciou o calendário de 2027; monitorar calendário, notícias e campeonatos relacionados."
+    },
+    {
+      "id": "british-hillclimb",
+      "name": "British Hillclimb Championship / BARC",
+      "source_type": "national_championship_organizer",
+      "confidence": "official",
+      "region": "United Kingdom / Channel Islands",
+      "series": [
+        "Motorsport UK British Hillclimb Championship",
+        "British Hillclimb Cup",
+        "BHC Tin Top Challenge"
+      ],
+      "official_url": "https://www.britishhillclimb.co.uk/",
+      "calendar_url": "https://www.britishhillclimb.co.uk/calendar",
+      "discovery_query": "site:britishhillclimb.co.uk (2027 OR 2028 OR calendar OR schedule OR rounds OR entries OR regulations)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Campeonato organizado pelo British Automobile Racing Club em nome da Motorsport UK. Fonte primária para calendário, regulamentos e inscrições."
+    },
+    {
+      "id": "lusail-international-circuit",
+      "name": "Lusail International Circuit",
+      "source_type": "official_circuit_and_event_organizer",
+      "confidence": "official",
+      "region": "Qatar / Middle East",
+      "series": [
+        "MotoGP Qatar Grand Prix",
+        "Motorsport events at Lusail International Circuit"
+      ],
+      "official_url": "https://www.lcsc.qa/",
+      "calendar_url": "https://www.lcsc.qa/moto-gp-event-schedule",
+      "discovery_query": "site:lcsc.qa (2027 OR 2028 OR MotoGP OR motorsport OR calendar OR schedule OR announced)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": false
+      },
+      "notes": "Circuit e organizador local da etapa do Qatar; monitorar anúncios de eventos e detalhes do fim de semana além do calendário global do campeonato."
+    }
+  ]
+}
