@@ -108,10 +108,10 @@ function renderSearchPresets() {
   if (state.searchPresets.some(preset => preset.id === current)) select.value = current;
 }
 function renderSources() {
-  const officialSources = state.sources.filter(source => ['official','regional'].includes(source.confidence));
+  const officialSources = state.sources.filter(source => ['official','regional','official_partner'].includes(source.confidence));
   $('#source-grid').innerHTML = officialSources.map(source => {
     const url = safeUrl(source.url); const evidence = safeUrl(source.official_info);
-    return `<article class="source-card"><div class="source-card-top"><h3>${escapeHtml(source.platform)}</h3><span class="access-tag ${escapeHtml(source.access)}">${escapeHtml(accessText[source.access] || accessText.unknown)}</span></div><div class="source-series">${escapeHtml(source.series)}</div><div class="source-region">${escapeHtml(source.region)}</div><p>${escapeHtml(source.note)}</p><div class="source-evidence">${source.confidence === "official" ? "OFFICIAL REFERENCE" : "OFFICIAL REGIONAL GUIDE"} · checked on ${escapeHtml(source.last_checked || "not provided")}</div><div class="source-actions">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open official guide ↗</a>` : ''}${evidence && evidence !== url ? `<a href="${escapeHtml(evidence)}" target="_blank" rel="noopener noreferrer">View official source</a>` : ''}</div></article>`;
+    return `<article class="source-card"><div class="source-card-top"><h3>${escapeHtml(source.platform)}</h3><span class="access-tag ${escapeHtml(source.access)}">${escapeHtml(accessText[source.access] || accessText.unknown)}</span></div><div class="source-series">${escapeHtml(source.series)}</div><div class="source-region">${escapeHtml(source.region)}</div><p>${escapeHtml(source.note)}</p><div class="source-evidence">${source.confidence === "official" ? "OFFICIAL REFERENCE" : source.confidence === "official_partner" ? "OFFICIAL BROADCAST PARTNER" : "OFFICIAL REGIONAL GUIDE"}${source.confidence === "official_partner" ? "" : " · checked on " + escapeHtml(source.last_checked || "not provided")}</div><div class="source-actions">${url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open official guide ↗</a>` : ''}${evidence && evidence !== url ? `<a href="${escapeHtml(evidence)}" target="_blank" rel="noopener noreferrer">View official source</a>` : ''}</div></article>`;
   }).join('') || '<div class="empty-state">No official watch guides added yet.</div>';
 }
 function renderDashboard(data) {
@@ -121,6 +121,15 @@ function renderDashboard(data) {
 async function fetchDashboard() {
   const response = await fetch('/api/dashboard'); if (!response.ok) throw new Error('Could not load the dashboard.');
   renderDashboard(await response.json());
+}
+async function refreshMonitoredSources() {
+  try {
+    const response = await fetch('/api/refresh', {method:'POST'});
+    if (!response.ok && response.status !== 207) return;
+    await fetchDashboard();
+  } catch (_) {
+    // A temporary source outage must not interrupt the dashboard or live scanner.
+  }
 }
 async function refreshRadar() {
   setLoading(true);
@@ -203,7 +212,7 @@ function renderLiveNow(data) {
   const target = $('#platform-results');
   const items = data.items || [];
   const platforms = data.platforms || {};
-  const platformSummary = Object.entries(platforms).map(([name, status]) => {
+  const platformSummary = Object.entries(platforms).filter(([name]) => name !== 'YouTube scheduled').map(([name, status]) => {
     const stateLabel = status.ok ? 'CONNECTED' : status.configured ? 'ERROR' : 'NOT CONFIGURED';
     const stateClass = status.ok ? 'connected' : status.configured ? 'failed' : 'disabled';
     const cached = status.cached ? ' · cached' : '';
@@ -302,5 +311,8 @@ $('#twitch-search').addEventListener('click', () => openLiveSearch('twitch'));
 $('#web-search').addEventListener('click', () => openLiveSearch('web'));
 $('#local-clock').textContent = `LOCAL TIME · ${new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date())}`;
 fetchDashboard().then(() => scanLiveNow(false)).catch(error => showToast(error.message, true));
+// Refresh permanent organizer/channel monitors on startup and every six hours while APEX is open, including background tabs.
+window.setTimeout(refreshMonitoredSources, 4_000);
 window.setInterval(checkUpcomingAlerts, 60_000);
 window.setInterval(() => scanLiveNow(false), 5 * 60_000);
+window.setInterval(refreshMonitoredSources, 6 * 60 * 60 * 1000);
