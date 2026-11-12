@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "description": "Season-independent additions for verified karting and motorcycle-racing sources. Kept separate so the main registry remains untouched.",
+  "sources": [
+    {
+      "id": "skusa",
+      "name": "SuperKarts! USA (SKUSA)",
+      "source_type": "championship_organizer",
+      "confidence": "official",
+      "region": "United States / North America",
+      "series": [
+        "SKUSA SuperNationals",
+        "SKUSA Pro Tour",
+        "SKUSA Winter Series",
+        "California ProKart Challenge",
+        "Texas Sprint Racing Series"
+      ],
+      "official_url": "https://superkartsusa.com/",
+      "calendar_url": "https://superkartsusa.com/event-schedules.html",
+      "channel_url": "https://www.youtube.com/channel/UCbpYe_A1PeJa-7DI1dk6LAg",
+      "youtube_channel": {
+        "channel_id": "UCbpYe_A1PeJa-7DI1dk6LAg"
+      },
+      "discovery_query": "site:superkartsusa.com (2027 OR 2028 OR SuperNationals OR Pro Tour OR Winter Series OR schedule OR calendar)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Official SKUSA site publishes the SuperNationals and 2027 series calendars and links to this official YouTube channel. Some event livestreams may be carried by specialist broadcasters, so do not assume the SKUSA channel is always the live-feed destination."
+    },
+    {
+      "id": "rotax-karting",
+      "name": "Rotax Karting / Rotax MAX Challenge",
+      "source_type": "championship_organizer_and_channel",
+      "confidence": "official",
+      "region": "Global",
+      "series": [
+        "Rotax MAX Challenge Grand Finals",
+        "Rotax MAX Challenge regional and national series",
+        "Rotax Euro Trophy",
+        "Rotax Winter Cup",
+        "Rotax E10 / E20"
+      ],
+      "official_url": "https://www.rotax-racing.com/",
+      "calendar_url": "https://www.rotax-racing.com/events",
+      "channel_url": "https://www.youtube.com/channel/UCwLYlVZspWjygOUzoZlxZ_A",
+      "youtube_channel": {
+        "channel_id": "UCwLYlVZspWjygOUzoZlxZ_A"
+      },
+      "watch_url": "https://grandfinals.rotax-racing.com/livestream",
+      "discovery_query": "site:rotax-racing.com (2027 OR 2028 OR RMC Grand Finals OR Rotax MAX Challenge OR race calendar OR livestream)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Official Rotax channel and global race calendar. The RMC Grand Finals event page publishes direct YouTube livestreams; coverage and access must be checked per event."
+    },
+    {
+      "id": "asbk",
+      "name": "Australian Superbike Championship (ASBK)",
+      "source_type": "national_championship_organizer",
+      "confidence": "official",
+      "region": "Australia",
+      "series": [
+        "Australian Superbike Championship",
+        "SW-Motech Superbike",
+        "Kawasaki Supersport Next Generation",
+        "Race & Road Supersport 300",
+        "BLU CRU Oceania Junior Cup",
+        "Superbike Masters"
+      ],
+      "official_url": "https://www.asbk.com.au/",
+      "calendar_url": "https://www.asbk.com.au/spectator-info/",
+      "channel_url": "https://www.youtube.com/channel/UCgMmapkj52KwM1coDghM4fA",
+      "youtube_channel": {
+        "channel_id": "UCgMmapkj52KwM1coDghM4fA"
+      },
+      "watch_url": "https://www.asbk.com.au/live-stream/",
+      "discovery_query": "site:asbk.com.au (2027 OR 2028 OR calendar OR schedule OR ASBK OR livestream OR live stream)",
+      "monitoring": {
+        "discovery": true,
+        "youtube_upcoming": true
+      },
+      "notes": "Motorcycling Australia links this as the official ASBK YouTube channel. The official timetable marks only selected sessions as ASBK Live TV coverage or ASBK TV Live Stream; do not imply that every practice is streamed."
+    },
+    {
+      "id": "kart-chaser",
+      "name": "Kart Chaser",
+      "source_type": "regional_broadcast_partner",
+      "confidence": "regional",
+      "region": "North America / Global online",
+      "series": [
+        "North American karting",
+        "SKUSA SuperNationals and selected karting events"
+      ],
+      "official_url": "https://www.kartchaser.com/",
+      "channel_url": "https://www.youtube.com/@kartchaser",
+      "youtube_channel": {
+        "handle": "@kartchaser"
+      },
+      "watch_url": "https://www.youtube.com/@kartchaser/streams",
+      "monitoring": {
+        "discovery": false,
+        "youtube_upcoming": true
+      },
+      "notes": "Specialist regional karting broadcaster, not a championship organizer. Its SKUSA SuperNationals 29 coverage was listed for November 12–15, 2026; whether that event feed is free or requires KC Premium was not confirmed. Verify access per event."
+    },
+    {
+      "id": "rotax-rmc-livestream",
+      "name": "Rotax RMC Grand Finals Livestream",
+      "source_type": "official_broadcast_partner",
+      "confidence": "official_partner",
+      "region": "Global",
+      "series": [
+        "Rotax MAX Challenge Grand Finals"
+      ],
+      "official_url": "https://grandfinals.rotax-racing.com/livestream",
+      "watch_url": "https://grandfinals.rotax-racing.com/livestream",
+      "monitoring": {
+        "discovery": false,
+        "youtube_upcoming": false
+      },
+      "notes": "Official Rotax event livestream directory. The organizer's page lists the YouTube broadcasts for each day; the 2026 Grand Finals livestream was advertised as free. Confirm the current edition's schedule and destination."
+    },
+    {
+      "id": "asbk-live-stream",
+      "name": "ASBK TV Live Stream",
+      "source_type": "official_broadcast_partner",
+      "confidence": "official_partner",
+      "region": "Australia",
+      "series": [
+        "Australian Superbike Championship"
+      ],
+      "official_url": "https://www.asbk.com.au/live-stream/",
+      "watch_url": "https://www.asbk.com.au/live-stream/",
+      "monitoring": {
+        "discovery": false,
+        "youtube_upcoming": false
+      },
+      "notes": "Official ASBK live-stream destination. The official timetable marks only selected sessions with the ASBK TV Live Stream symbol; do not treat every practice as streamed."
+    }
+  ]
+}
